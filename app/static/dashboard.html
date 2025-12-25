@@ -104,13 +104,13 @@
         }
 
         .status-installed {
-            background: #d4edda;
-            color: #155724;
+            background: rgba(52, 211, 153, 0.2);
+            color: #86efac;
         }
 
         .status-not-installed {
-            background: #f8d7da;
-            color: #721c24;
+            background: rgba(248, 113, 113, 0.2);
+            color: #fca5a5;
         }
 
         .app-actions {
@@ -507,11 +507,11 @@
                 const disk = document.getElementById('sumDisk');
                 const temp = document.getElementById('sumTemp');
                 const up = document.getElementById('sumUptime');
-                if (cpu) cpu.textContent = `${data.cpu.percent}%`;
+                if (cpu) cpu.textContent = `${data.cpu.percent_total}%`;
                 if (mem) mem.textContent = `${data.memory.percent}%`;
-                if (disk) disk.textContent = `${data.disk.percent}%`;
-                if (temp) temp.textContent = data.temperature != null ? `${data.temperature}°C` : 'N/A';
-                if (up) up.textContent = formatUptime(data.uptime_seconds);
+                if (disk) disk.textContent = `${data.disk.root.percent}%`;
+                if (temp) temp.textContent = data.hardware.temperature != null ? `${data.hardware.temperature}°C` : 'N/A';
+                if (up) up.textContent = formatUptime(data.system.uptime_seconds);
             } catch (e) {
                 // Silent fail to keep the UI clean
             }

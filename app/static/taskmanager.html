@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Manager</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #e0e0e8;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: rgba(30, 30, 46, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 28px;
+            background: linear-gradient(135deg, #667eea 0%, #a78bfa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #a0a0b0;
+            font-size: 14px;
+        }
+
+        .toolbar {
+            background: rgba(30, 30, 46, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+        }
+
+        button {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.15);
+            color: #d0d0d8;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.25);
+        }
+
+        .process-list {
+            background: rgba(30, 30, 46, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+        }
+
+        .process-header {
+            display: grid;
+            grid-template-columns: 60px 1fr 80px 100px 100px 120px;
+            gap: 12px;
+            padding: 15px 20px;
+            background: rgba(0, 0, 0, 0.3);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            font-weight: 600;
+            font-size: 13px;
+            color: #a0a0b0;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .process-item {
+            display: grid;
+            grid-template-columns: 60px 1fr 80px 100px 100px 120px;
+            gap: 12px;
+            padding: 12px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            align-items: center;
+            transition: background 0.2s;
+        }
+
+        .process-item:hover {
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        .process-item:last-child {
+            border-bottom: none;
+        }
+
+        .pid {
+            font-family: monospace;
+            color: #9090a0;
+            font-size: 12px;
+        }
+
+        .name {
+            word-break: break-word;
+            color: #e0e0e8;
+        }
+
+        .user {
+            font-size: 12px;
+            color: #b0b0c0;
+        }
+
+        .cpu, .memory {
+            text-align: right;
+            font-size: 12px;
+            color: #d0d0d8;
+        }
+
+        .status {
+            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            background: rgba(102, 126, 234, 0.2);
+            color: #a78bfa;
+            text-align: center;
+        }
+
+        .status.running {
+            background: rgba(52, 211, 153, 0.2);
+            color: #86efac;
+        }
+
+        .status.stopped {
+            background: rgba(248, 113, 113, 0.2);
+            color: #fca5a5;
+        }
+
+        .actions {
+            display: flex;
+            gap: 6px;
+        }
+
+        .actions button {
+            padding: 6px 10px;
+            font-size: 11px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #9090a0;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .alert {
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .alert-success {
+            background: rgba(52, 211, 153, 0.2);
+            color: #86efac;
+            border: 1px solid rgba(52, 211, 153, 0.3);
+        }
+
+        .alert-error {
+            background: rgba(248, 113, 113, 0.2);
+            color: #fca5a5;
+            border: 1px solid rgba(248, 113, 113, 0.3);
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateY(-20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .footer {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .separator {
+            flex: 1;
+        }
+
+        @media (max-width: 768px) {
+            .process-header, .process-item {
+                grid-template-columns: 1fr;
+            }
+
+            .process-header {
+                display: none;
+            }
+
+            .process-item {
+                display: block;
+            }
+
+            .process-item > * {
+                margin-bottom: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>⚙️ Task Manager</h1>
+            <p class="subtitle">Monitor and manage running processes</p>
+        </header>
+
+        <div id="alertContainer"></div>
+
+        <div class="toolbar">
+            <button onclick="refreshProcesses()">🔄 Refresh</button>
+            <button class="btn-secondary" onclick="location.href='/'">← Dashboard</button>
+            <div class="separator"></div>
+            <span id="processCount" style="color: #a0a0b0; font-size: 13px;">Processes: --</span>
+        </div>
+
+        <div class="process-list">
+            <div class="process-header">
+                <div>PID</div>
+                <div>Process Name</div>
+                <div>User</div>
+                <div>CPU %</div>
+                <div>Memory %</div>
+                <div>Status</div>
+            </div>
+            <div id="processList" style="max-height: 600px; overflow-y: auto;"></div>
+        </div>
+
+        <div class="footer">
+            <button class="btn-secondary" onclick="location.href='/'">← Dashboard</button>
+            <button onclick="refreshProcesses()">🔄 Refresh</button>
+        </div>
+    </div>
+
+    <script>
+        let refreshInterval = null;
+
+        async function loadConfig() {
+            try {
+                const r = await fetch('/api/config');
+                if (!r.ok) return 2000;
+                const c = await r.json();
+                return c.refreshInterval || 2000;
+            } catch { return 2000; }
+        }
+
+        async function refreshProcesses() {
+            try {
+                const r = await fetch('/api/tasks/list');
+                if (!r.ok) return;
+                const d = await r.json();
+                renderProcesses(d.processes);
+            } catch (e) {
+                showAlert(`Failed to load processes: ${e.message}`, 'error');
+            }
+        }
+
+        function renderProcesses(processes) {
+            const list = document.getElementById('processList');
+            document.getElementById('processCount').textContent = `Processes: ${processes.length}`;
+
+            if (processes.length === 0) {
+                list.innerHTML = '<div class="loading">No processes found</div>';
+                return;
+            }
+
+            list.innerHTML = processes.map(p => `
+                <div class="process-item">
+                    <div class="pid">${p.pid}</div>
+                    <div class="name">${p.name}</div>
+                    <div class="user">${p.user || 'N/A'}</div>
+                    <div class="cpu">${p.cpu.toFixed(1)}%</div>
+                    <div class="memory">${p.memory.toFixed(1)}%</div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <span class="status running">${p.status}</span>
+                        <button class="btn-danger" onclick="killProcess(${p.pid}, '${p.name}')">Kill</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function killProcess(pid, name) {
+            if (!confirm(`Kill process "${name}" (PID ${pid})?`)) return;
+
+            try {
+                const formData = new FormData();
+                formData.append('pid', pid);
+                const r = await fetch('/api/tasks/kill', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (r.ok) {
+                    showAlert(`Process ${name} terminated`, 'success');
+                    await refreshProcesses();
+                } else {
+                    const e = await r.json().catch(() => ({}));
+                    showAlert(e.detail || `Failed to kill process ${name}`, 'error');
+                }
+            } catch (e) {
+                showAlert(`Error killing process: ${e.message}`, 'error');
+            }
+        }
+
+        function showAlert(msg, type) {
+            const container = document.getElementById('alertContainer');
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = msg;
+            container.appendChild(alert);
+            setTimeout(() => alert.remove(), 4000);
+        }
+
+        (async function init() {
+            const interval = await loadConfig();
+            await refreshProcesses();
+            refreshInterval = setInterval(refreshProcesses, interval);
+        })();
+    </script>
+</body>
+</html>
