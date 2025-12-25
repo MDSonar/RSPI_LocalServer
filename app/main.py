@@ -4,6 +4,7 @@ import json
 import subprocess
 import psutil
 import urllib.request
+import urllib.error
 import shutil
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
@@ -41,6 +42,13 @@ GITHUB_RAW_BASE = cfg.get(
     "apps.github_raw_base",
     "https://raw.githubusercontent.com/MDSonar/RSPI_LocalServer/main/apps",
 )
+
+
+def fetch_json(url: str, timeout: int = 8):
+    """Fetch JSON from URL with User-Agent and return dict."""
+    req = urllib.request.Request(url, headers={"User-Agent": "rspi-localserver/1.0"})
+    with urllib.request.urlopen(req, timeout=timeout) as response:
+        return json.loads(response.read().decode())
 
 def load_app_state():
     """Load installed apps state."""
@@ -85,9 +93,11 @@ def get_app_manifest(app_id):
     try:
         for category in ["core", "optional"]:
             url = f"{GITHUB_RAW_BASE}/{category}/{app_id}/manifest.json"
-            with urllib.request.urlopen(url, timeout=5) as response:
-                return json.loads(response.read().decode())
-    except:
+            try:
+                return fetch_json(url)
+            except Exception as e:
+                logger.warning(f"Manifest fetch failed from {url}: {e}")
+    except Exception:
         pass
     
     return None
@@ -96,7 +106,7 @@ def download_app_from_github(app_id):
     """Download app files from GitHub."""
     manifest = get_app_manifest(app_id)
     if not manifest:
-        raise Exception("App manifest not found")
+        raise Exception("App manifest not found (check github_raw_base and connectivity)")
     
     # Determine category
     category = "optional"  # Default, core apps are pre-installed
@@ -118,6 +128,7 @@ def download_app_from_github(app_id):
         logger.warning(f"GitHub manifest fetch failed for {app_id}: {e}; trying local copy")
         local_manifest = LOCAL_REPO_APPS / category / app_id / "manifest.json"
         if not local_manifest.exists():
+            logger.error(f"Local manifest missing at {local_manifest}")
             raise
         shutil.copy(local_manifest, manifest_path)
 
@@ -132,6 +143,7 @@ def download_app_from_github(app_id):
             logger.warning(f"GitHub fetch failed for {file_name}: {e}; trying local copy")
             local_file = LOCAL_REPO_APPS / category / app_id / file_name
             if not local_file.exists():
+                logger.error(f"Local file missing at {local_file}")
                 raise
             shutil.copy(local_file, file_path)
     
