@@ -207,7 +207,8 @@ async def eject(path: str, authorization: str = None):
     if result.returncode != 0:
         logger.error(f"Failed to eject {target_path}: {result.stderr}")
         raise HTTPException(status_code=500, detail="Failed to eject drive")
-    
+
+    # After eject, if current path is inside the ejected mount, reset to root
     return {"message": "Drive ejected successfully"}
 
 

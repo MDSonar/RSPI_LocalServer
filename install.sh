@@ -66,18 +66,37 @@ if [ "$ACTION" = "add" ]; then
     # Create mount point and mount
     mkdir -p "$MOUNT_POINT"
     chown $RSPI_UID:$RSPI_GID "$MOUNT_POINT"
-    mount -o uid=$RSPI_UID,gid=$RSPI_GID,umask=022 "$DEVNAME" "$MOUNT_POINT"
-    logger "USB: Mounted $DEVNAME at $MOUNT_POINT"
-elif [ "$ACTION" = "remove" ]; then
-    # Unmount and remove empty directory
-    if mountpoint -q "$MOUNT_POINT" 2>/dev/null; then
-        umount -l "$MOUNT_POINT"
-        logger "USB: Unmounted $DEVNAME from $MOUNT_POINT"
+    if mount -o uid=$RSPI_UID,gid=$RSPI_GID,umask=022 "$DEVNAME" "$MOUNT_POINT"; then
+        logger "USB: Mounted $DEVNAME at $MOUNT_POINT"
+    else
+        logger "USB: Failed to mount $DEVNAME at $MOUNT_POINT"
     fi
-    # Remove empty directory
-    if [ -d "$MOUNT_POINT" ] && [ -z "$(ls -A $MOUNT_POINT)" ]; then
-        rmdir "$MOUNT_POINT"
-        logger "USB: Removed empty mount point $MOUNT_POINT"
+elif [ "$ACTION" = "remove" ]; then
+    # Determine the actual mount point
+    if mountpoint -q "$DEVNAME" 2>/dev/null; then
+        MOUNT_POINT="$DEVNAME"
+    else
+        MP=$(findmnt -n -o TARGET "$DEVNAME" 2>/dev/null)
+        if [ -n "$MP" ]; then
+            MOUNT_POINT="$MP"
+        fi
+    fi
+
+    # Unmount and remove empty directory
+    if [ -n "$MOUNT_POINT" ] && mountpoint -q "$MOUNT_POINT" 2>/dev/null; then
+        umount -l "$MOUNT_POINT" || umount -l "$DEVNAME" || true
+        logger "USB: Unmounted $DEVNAME from $MOUNT_POINT"
+        # Remove empty directory
+        if [ -d "$MOUNT_POINT" ] && [ -z "$(ls -A $MOUNT_POINT 2>/dev/null)" ]; then
+            rmdir "$MOUNT_POINT" 2>/dev/null || true
+            logger "USB: Removed empty mount point $MOUNT_POINT"
+        fi
+    else
+        # Fallback: just try to remove dir if empty
+        if [ -d "$MOUNT_POINT" ] && [ -z "$(ls -A $MOUNT_POINT 2>/dev/null)" ]; then
+            rmdir "$MOUNT_POINT" 2>/dev/null || true
+            logger "USB: Removed empty mount point $MOUNT_POINT"
+        fi
     fi
 fi
 MOUNT_SCRIPT
@@ -176,7 +195,20 @@ SYSTEMD_EOF
 
 # Set permissions
 echo "🔐 Setting permissions..."
-chown -R "$APP_USER:$APP_GROUP" "$APP_HOME" "$CONFIG_PATH" "$LOG_PATH" "/media/usb"
+# Clean up stale sd* folders that are not mount points (avoid I/O errors)
+if [ -d "/media/usb" ]; then
+    for d in /media/usb/sd*; do
+        [ -d "$d" ] || continue
+        if mountpoint -q "$d" 2>/dev/null; then
+            umount -l "$d" 2>/dev/null || true
+        fi
+        if [ -d "$d" ] && [ -z "$(ls -A "$d" 2>/dev/null)" ]; then
+            rmdir "$d" 2>/dev/null || true
+        fi
+    done
+fi
+
+chown -R "$APP_USER:$APP_GROUP" "$APP_HOME" "$CONFIG_PATH" "$LOG_PATH" "/media/usb" 2>/dev/null || true
 chmod 755 "$APP_HOME"
 chmod 755 "$LOG_PATH"
 chmod 640 "$CONFIG_PATH/config.yaml"
