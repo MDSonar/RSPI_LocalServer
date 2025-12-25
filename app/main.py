@@ -189,26 +189,38 @@ async def eject(path: str, authorization: str = None):
         raise HTTPException(status_code=400, detail="Invalid path")
     
     # Check if it's a mount point
-    result = subprocess.run(
-        ["mountpoint", "-q", str(target_path)],
-        capture_output=True
-    )
+    try:
+        result = subprocess.run(
+            ["mountpoint", "-q", str(target_path)],
+            capture_output=True,
+            timeout=5
+        )
+        
+        if result.returncode != 0:
+            raise HTTPException(status_code=400, detail="Not a mount point")
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=500, detail="Timeout checking mount point")
+    except FileNotFoundError:
+        raise HTTPException(status_code=500, detail="mountpoint command not found")
     
-    if result.returncode != 0:
-        raise HTTPException(status_code=400, detail="Not a mount point")
-    
-    # Unmount and cleanup via the helper script
-    result = subprocess.run(
-        ["/usr/local/bin/usb-mount.sh", "remove", str(target_path)],
-        capture_output=True,
-        text=True
-    )
-    
-    if result.returncode != 0:
-        logger.error(f"Failed to eject {target_path}: {result.stderr}")
-        raise HTTPException(status_code=500, detail="Failed to eject drive")
+    # Unmount and cleanup via the helper script (pass mount path, not device)
+    try:
+        result = subprocess.run(
+            ["/usr/local/bin/usb-mount.sh", "remove", str(target_path)],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        
+        if result.returncode != 0:
+            error_msg = result.stderr.strip() if result.stderr else "Unknown error"
+            logger.error(f"Failed to eject {target_path}: {error_msg}")
+            raise HTTPException(status_code=500, detail=f"Failed to eject drive: {error_msg}")
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=500, detail="Timeout ejecting drive")
+    except FileNotFoundError:
+        raise HTTPException(status_code=500, detail="usb-mount.sh helper script not found")
 
-    # After eject, if current path is inside the ejected mount, reset to root
     return {"message": "Drive ejected successfully"}
 
 

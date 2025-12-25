@@ -607,11 +607,12 @@
                         refreshList();
                     }
                 } else {
-                    const error = await response.json();
-                    showAlert(error.detail || "Failed to eject drive", "error");
+                    const error = await response.json().catch(() => ({}));
+                    showAlert(error.detail || error.message || "Failed to eject drive", "error");
                 }
             } catch (err) {
-                showAlert("Error ejecting drive: " + err.message, "error");
+                console.error("Eject error:", err);
+                showAlert("Error ejecting drive: " + (err.message || "Unknown error"), "error");
             }
         }
 
