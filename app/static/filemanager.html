@@ -193,6 +193,29 @@
             color: #e0e0e8;
         }
 
+        /* Video modal */
+        #videoModal .modal-content {
+            max-width: 900px;
+            width: 95%;
+            padding: 16px;
+        }
+
+        .video-wrapper {
+            position: relative;
+            width: 100%;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .video-wrapper video {
+            width: 100%;
+            height: 100%;
+            max-height: 70vh;
+            background: #000;
+        }
+
         .modal-header {
             font-size: 20px;
             font-weight: 600;
@@ -411,6 +434,19 @@
         </div>
     </div>
 
+    <!-- Video Player Modal -->
+    <div id="videoModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;">
+                <span id="videoTitle">🎬 Video</span>
+                <button class="btn-secondary" onclick="closeVideo()">✖ Close</button>
+            </div>
+            <div class="video-wrapper" style="margin-top:12px;">
+                <video id="inlineVideo" controls preload="metadata"></video>
+            </div>
+        </div>
+    </div>
+
     <script>
         let currentPath = "";
         let selectedItem = null;
@@ -420,21 +456,21 @@
 
         // Initialize
         (async () => {
-            try {
-                const config = await fetch("/api/config").then(r => r.json());
-                document.getElementById("appTitle").textContent = config.title;
-                
-                // Setup auto-refresh if configured (background refresh, no loading state)
-                if (config.refreshInterval && config.refreshInterval > 0) {
-                    autoRefreshInterval = setInterval(() => refreshList(false), config.refreshInterval);
-                }
-            } catch (e) {
-                console.error("Failed to load config:", e);
-            }
-            refreshList();
-        })();
-
-        // Refresh file list
+                return `
+                    <div class="file-item" onclick="selectItem(this, '${itemPath}', ${item.is_dir})">
+                        <div class="file-icon">${icon}</div>
+                        <div class="file-info">
+                            <div class="file-name">${escapeHtml(item.name)}</div>
+                            <div class="file-meta">${date}${size ? " • " + size : ""}</div>
+                        </div>
+                        <div class="file-actions">
+                            ${item.is_dir ? `<button onclick=\"openFolder('${itemPath}'); event.stopPropagation();\">📂 Open</button>` : `${isVideo ? `<button onclick=\"playVideoInline('${itemPath}'); event.stopPropagation();\">▶️ Play</button>` : ''}<button onclick=\"downloadFile('${itemPath}'); event.stopPropagation();\">⬇️ Download</button>`}
+                            ${item.is_mountpoint ? `<button class=\"btn-warning\" onclick=\"ejectDrive('${itemPath}'); event.stopPropagation();\">⏏️ Eject</button>` : ''}
+                            ${!item.is_mountpoint ? `<button onclick=\"showRenameDialog('${itemPath}'); event.stopPropagation();\">✏️ Rename</button>` : ''}
+                            ${!item.is_mountpoint ? `<button class=\"btn-danger\" onclick=\"showDeleteDialog('${itemPath}', '${escapeHtml(item.name)}'); event.stopPropagation();\">🗑️ Delete</button>` : ''}
+                        </div>
+                    </div>
+                `;
         async function refreshList(showLoading = true) {
             const fileList = document.getElementById("fileList");
             
@@ -804,9 +840,23 @@
             return ["mp4", "mkv", "mov", "avi", "webm", "m4v"].includes(ext);
         }
 
-        function playVideo(path) {
-            const url = `/apps/videoplayer?path=${encodeURIComponent(path)}`;
-            window.open(url, "_blank");
+        function playVideoInline(path) {
+            const video = document.getElementById("inlineVideo");
+            const modal = document.getElementById("videoModal");
+            const title = document.getElementById("videoTitle");
+            title.textContent = `🎬 ${path.split('/').pop()}`;
+            video.src = `/api/video/stream?path=${encodeURIComponent(path)}`;
+            video.load();
+            modal.classList.add("show");
+            video.play().catch(() => {});
+        }
+
+        function closeVideo() {
+            const modal = document.getElementById("videoModal");
+            const video = document.getElementById("inlineVideo");
+            video.pause();
+            video.src = "";
+            modal.classList.remove("show");
         }
 
         // Close modals on outside click
