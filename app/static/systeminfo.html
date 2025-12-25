@@ -88,7 +88,7 @@
         </header>
 
         <div class="card">
-            <h3>30-Minute Trend</h3>
+            <h3>15-Minute Trend</h3>
             <canvas id="trendChart" style="max-height: 200px;"></canvas>
         </div>
 
@@ -337,25 +337,34 @@
                             label: 'CPU %',
                             data: [],
                             borderColor: 'rgb(102, 126, 234)',
-                            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                            backgroundColor: 'rgba(102, 126, 234, 0)',
                             borderWidth: 2,
-                            tension: 0.3
+                            tension: 0.3,
+                            pointRadius: 0,
+                            pointHoverRadius: 0,
+                            fill: false
                         },
                         {
                             label: 'Memory %',
                             data: [],
                             borderColor: 'rgb(167, 139, 250)',
-                            backgroundColor: 'rgba(167, 139, 250, 0.1)',
+                            backgroundColor: 'rgba(167, 139, 250, 0)',
                             borderWidth: 2,
-                            tension: 0.3
+                            tension: 0.3,
+                            pointRadius: 0,
+                            pointHoverRadius: 0,
+                            fill: false
                         },
                         {
                             label: 'Temp °C',
                             data: [],
                             borderColor: 'rgb(245, 101, 101)',
-                            backgroundColor: 'rgba(245, 101, 101, 0.1)',
+                            backgroundColor: 'rgba(245, 101, 101, 0)',
                             borderWidth: 2,
                             tension: 0.3,
+                            pointRadius: 0,
+                            pointHoverRadius: 0,
+                            fill: false,
                             yAxisID: 'y1'
                         }
                     ]

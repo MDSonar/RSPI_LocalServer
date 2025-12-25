@@ -22,8 +22,8 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="RSPI LocalServer", version="2.0.0")
 
-# Time-series buffer for 30-minute trends (collect every 10 seconds = 180 samples)
-metrics_history = deque(maxlen=180)
+# Time-series buffer for 15-minute trends (collect every 10 seconds = 90 samples)
+metrics_history = deque(maxlen=90)
 metrics_lock = Lock()
 
 # Configure CORS for LAN access
@@ -639,11 +639,12 @@ async def get_system_info(authorization: str = None):
 
 @app.get("/api/system/history")
 async def get_system_history(authorization: str = None):
-    """Get 30-minute trend history for CPU, Memory, Temperature."""
+    """Get 15-minute trend history for CPU, Memory, Temperature."""
     verify_auth(authorization)
     
+    cutoff = time.time() - 900  # last 15 minutes
     with metrics_lock:
-        history = list(metrics_history)
+        history = [h for h in metrics_history if h["timestamp"] >= cutoff]
     
     return {
         "timestamps": [h["timestamp"] for h in history],
