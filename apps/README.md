@@ -105,3 +105,11 @@ Replace `YOUR_USERNAME` with your GitHub username.
 - **Modular architecture**: Easy to add/remove apps
 - **Bandwidth efficient**: Only download what's needed
 - **Storage friendly**: Perfect for Pi with limited SD card space
+
+
+git clone --no-checkout https://github.com/MDSonar/RSPI_LocalServer.git
+cd RSPI_LocalServer
+git sparse-checkout init --cone
+git sparse-checkout set app apps/core apps/README.md install.sh requirements.txt
+git checkout main
+sudo ./install.sh
