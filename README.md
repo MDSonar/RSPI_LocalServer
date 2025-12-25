@@ -41,16 +41,29 @@ A lightweight, LAN-only file manager web app for Raspberry Pi 4B (1GB RAM, Wi-Fi
 
 ## Installation
 
-### 1. Prepare Raspberry Pi
+### 1. Install RSPI LocalServer
+
+The `install.sh` script handles everything:
 
 ```bash
-# Update system
+# Clone or download the project
+cd ~/RSPI_LocalServer
+
+# Run installer (as root) - this will:
+# - Update system packages
+# - Install Python 3, venv, and pip
+# - Create the rspi application user
+# - Set up virtual environment
+# - Install Python dependencies
+# - Create systemd service
+# - Start the service on port 8080
+sudo bash install.sh
+```
+
+**Optional:** To install filesystem drivers for NTFS/exFAT support before running install.sh:
+
+```bash
 sudo apt update && sudo apt upgrade -y
-
-# Install Python 3 and dependencies
-sudo apt install -y python3 python3-venv python3-pip
-
-# Install filesystem drivers (optional, for NTFS/exFAT)
 sudo apt install -y ntfs-3g exfat-fuse
 ```
 
@@ -92,24 +105,7 @@ sudo mount /dev/sda1 /media/usb/mydrive
 sudo chown -R pi:pi /media/usb/mydrive
 ```
 
-### 3. Install RSPI LocalServer
-
-```bash
-# Clone or download the project
-cd ~/RSPI_LocalServer
-
-# Run installer (as root)
-sudo bash install.sh
-```
-
-The installer will:
-- Create the `rspi` application user
-- Install Python dependencies in a virtual environment at `/opt/rspi-localserver`
-- Create the systemd service
-- Create log directory at `/var/log/rspi-localserver`
-- Start the service on port `8080`
-
-### 4. Access the UI
+### 3. Access the UI
 
 From any device on the same LAN:
 

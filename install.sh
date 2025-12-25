@@ -21,6 +21,11 @@ if [[ $EUID -ne 0 ]]; then
    exit 1
 fi
 
+# Update system packages
+echo "🔄 Updating system packages..."
+apt update
+apt install -y python3 python3-venv python3-pip
+
 # Create application user and group
 echo "👤 Creating application user..."
 if ! id "$APP_USER" &>/dev/null; then

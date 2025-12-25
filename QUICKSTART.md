@@ -3,11 +3,10 @@
 ## 30-Second Installation
 
 ```bash
-# On Raspberry Pi 4B running Raspberry Pi OS Lite
-sudo apt update && sudo apt install -y python3 python3-venv python3-pip
-
 # Clone/download this project, then:
 cd RSPI_LocalServer
+
+# Run the installer (handles Python setup automatically)
 sudo bash install.sh
 
 # Access at: http://<your-pi-ip>:8080

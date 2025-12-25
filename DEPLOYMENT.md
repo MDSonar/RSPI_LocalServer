@@ -18,22 +18,19 @@ Use this guide to deploy on your Raspberry Pi 4B.
 # SSH into your Pi
 ssh pi@<pi-ip>
 
-# Update system
-sudo apt update
-sudo apt upgrade -y
+# The install.sh script will automatically:
+# - Update system packages
+# - Install Python 3, venv, and pip
+# - Set up the application
 
-# Install Python and dependencies
-sudo apt install -y python3 python3-venv python3-pip
-
-# (Optional) Install filesystem drivers for NTFS/exFAT
+# (Optional) Pre-install filesystem drivers for NTFS/exFAT support:
 sudo apt install -y ntfs-3g exfat-fuse
 
 # (Optional) Install Samba if you want Windows-style shares too
 sudo apt install -y samba
 ```
 
-- [ ] System updated
-- [ ] Python 3 installed and working: `python3 --version` (should be 3.9+)
+- [ ] SSH access to Raspberry Pi confirmed
 
 ### 2. Prepare USB Storage
 
@@ -91,7 +88,9 @@ cd ~/RSPI_LocalServer
 # Run installation
 sudo bash install.sh
 
-# This will:
+# This will automatically:
+# - Update system packages
+# - Install Python 3, venv, and pip
 # - Create 'rspi' application user
 # - Install Python venv at /opt/rspi-localserver
 # - Create systemd service
