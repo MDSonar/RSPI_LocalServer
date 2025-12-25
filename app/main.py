@@ -3,6 +3,8 @@ import logging
 import json
 import subprocess
 import psutil
+import urllib.request
+import shutil
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -29,6 +31,8 @@ file_manager = FileManager()
 
 # App state management
 APPS_STATE_FILE = Path("/opt/rspi-localserver/apps_state.json")
+APPS_DIR = Path("/opt/rspi-localserver/apps")
+GITHUB_RAW_BASE = "https://raw.githubusercontent.com/MDSonar/RSPI_LocalServer/main/apps"
 
 def load_app_state():
     """Load installed apps state."""
@@ -48,6 +52,59 @@ def save_app_state(state):
     except Exception as e:
         logger.error(f"Failed to save app state: {e}")
         return False
+
+def get_app_manifest(app_id):
+    """Get app manifest from installed location or GitHub."""
+    # Try local first
+    for category in ["core", "optional"]:
+        manifest_path = APPS_DIR / category / app_id / "manifest.json"
+        if manifest_path.exists():
+            try:
+                return json.loads(manifest_path.read_text())
+            except:
+                pass
+    
+    # Try GitHub
+    try:
+        for category in ["core", "optional"]:
+            url = f"{GITHUB_RAW_BASE}/{category}/{app_id}/manifest.json"
+            with urllib.request.urlopen(url, timeout=5) as response:
+                return json.loads(response.read().decode())
+    except:
+        pass
+    
+    return None
+
+def download_app_from_github(app_id):
+    """Download app files from GitHub."""
+    manifest = get_app_manifest(app_id)
+    if not manifest:
+        raise Exception("App manifest not found")
+    
+    # Determine category
+    category = "optional"  # Default, core apps are pre-installed
+    for cat in ["core", "optional"]:
+        check_path = APPS_DIR / cat / app_id
+        if check_path.exists():
+            category = cat
+            break
+    
+    app_dir = APPS_DIR / category / app_id
+    app_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Download manifest
+    manifest_url = f"{GITHUB_RAW_BASE}/{category}/{app_id}/manifest.json"
+    manifest_path = app_dir / "manifest.json"
+    urllib.request.urlretrieve(manifest_url, str(manifest_path))
+    
+    # Download each file
+    for file_name in manifest["files"]:
+        file_url = f"{GITHUB_RAW_BASE}/{category}/{app_id}/{file_name}"
+        file_path = app_dir / file_name
+        urllib.request.urlretrieve(file_url, str(file_path))
+        logger.info(f"Downloaded {file_name} for app {app_id}")
+    
+    return True
 
 
 def verify_auth(authorization: str = None):
@@ -94,19 +151,35 @@ async def root(authorization: str = None):
 async def filemanager_app(authorization: str = None):
     """Serve the file manager app."""
     verify_auth(authorization)
+    
+    # Try installed location first
+    for category in ["core", "optional"]:
+        ui_path = APPS_DIR / category / "filemanager" / "filemanager.html"
+        if ui_path.exists():
+            return ui_path.read_text()
+    
+    # Fallback to static (dev mode)
     ui_path = Path(__file__).parent / "static" / "filemanager.html"
     if ui_path.exists():
         return ui_path.read_text()
-    return "<h1>File Manager</h1><p>App not found</p>"
+    
+    return "<h1>File Manager</h1><p>App not installed. Please install from dashboard.</p>"
 
 
 @app.get("/apps/systeminfo", response_class=HTMLResponse)
 async def systeminfo_app(authorization: str = None):
     """Serve the system info app."""
     verify_auth(authorization)
+    
+    for category in ["core", "optional"]:
+        ui_path = APPS_DIR / category / "systeminfo" / "systeminfo.html"
+        if ui_path.exists():
+            return ui_path.read_text()
+    
     ui_path = Path(__file__).parent / "static" / "systeminfo.html"
     if ui_path.exists():
         return ui_path.read_text()
+    
     return "<h1>System Info</h1><p>App not found</p>"
 
 
@@ -114,9 +187,16 @@ async def systeminfo_app(authorization: str = None):
 async def taskmanager_app(authorization: str = None):
     """Serve the task manager app."""
     verify_auth(authorization)
+    
+    for category in ["core", "optional"]:
+        ui_path = APPS_DIR / category / "taskmanager" / "taskmanager.html"
+        if ui_path.exists():
+            return ui_path.read_text()
+    
     ui_path = Path(__file__).parent / "static" / "taskmanager.html"
     if ui_path.exists():
         return ui_path.read_text()
+    
     return "<h1>Task Manager</h1><p>App not found</p>"
 
 
@@ -130,7 +210,7 @@ async def get_apps_status(authorization: str = None):
 
 @app.post("/api/apps/install")
 async def install_app(app_id: str = Form(...), authorization: str = None):
-    """Install an app."""
+    """Install an app by downloading from GitHub."""
     verify_auth(authorization)
     
     valid_apps = ["filemanager", "systeminfo", "taskmanager"]
@@ -138,19 +218,27 @@ async def install_app(app_id: str = Form(...), authorization: str = None):
         raise HTTPException(status_code=400, detail="Invalid app ID")
     
     state = load_app_state()
-    if app_id not in state["installed"]:
-        state["installed"].append(app_id)
-        if save_app_state(state):
-            return {"message": f"App {app_id} installed successfully"}
-        else:
-            raise HTTPException(status_code=500, detail="Failed to save app state")
+    if app_id in state["installed"]:
+        return {"message": f"App {app_id} already installed"}
     
-    return {"message": f"App {app_id} already installed"}
+    try:
+        # Download app files from GitHub
+        download_app_from_github(app_id)
+        
+        # Mark as installed
+        state["installed"].append(app_id)
+        if not save_app_state(state):
+            raise Exception("Failed to save app state")
+        
+        return {"message": f"App {app_id} installed successfully"}
+    except Exception as e:
+        logger.error(f"Failed to install app {app_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Installation failed: {str(e)}")
 
 
 @app.post("/api/apps/uninstall")
 async def uninstall_app(app_id: str = Form(...), authorization: str = None):
-    """Uninstall an app."""
+    """Uninstall an app by removing its files."""
     verify_auth(authorization)
     
     # Prevent uninstalling mandatory apps
@@ -158,14 +246,27 @@ async def uninstall_app(app_id: str = Form(...), authorization: str = None):
         raise HTTPException(status_code=400, detail="Cannot uninstall core apps")
     
     state = load_app_state()
-    if app_id in state["installed"]:
-        state["installed"].remove(app_id)
-        if save_app_state(state):
-            return {"message": f"App {app_id} uninstalled successfully"}
-        else:
-            raise HTTPException(status_code=500, detail="Failed to save app state")
+    if app_id not in state["installed"]:
+        return {"message": f"App {app_id} not installed"}
     
-    return {"message": f"App {app_id} not installed"}
+    try:
+        # Remove app directory
+        for category in ["core", "optional"]:
+            app_dir = APPS_DIR / category / app_id
+            if app_dir.exists():
+                shutil.rmtree(app_dir)
+                logger.info(f"Removed app directory: {app_dir}")
+                break
+        
+        # Update state
+        state["installed"].remove(app_id)
+        if not save_app_state(state):
+            raise Exception("Failed to save app state")
+        
+        return {"message": f"App {app_id} uninstalled successfully"}
+    except Exception as e:
+        logger.error(f"Failed to uninstall app {app_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Uninstall failed: {str(e)}")
 
 
 # System Info APIs

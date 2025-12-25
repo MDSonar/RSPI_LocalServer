@@ -1,0 +1,11 @@
+{
+  "name": "File Manager",
+  "version": "1.0.0",
+  "description": "Browse, upload, download, and manage files on your USB drives and storage devices",
+  "files": [
+    "filemanager.html",
+    "file_manager.py"
+  ],
+  "dependencies": [],
+  "route": "/apps/filemanager"
+}
