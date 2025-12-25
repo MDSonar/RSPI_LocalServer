@@ -1,0 +1,33 @@
+# RSPI LocalServer Configuration
+
+server:
+  host: "0.0.0.0"
+  port: 8080
+  workers: 1  # Keep low for 1GB RAM Pi
+  worker_class: "uvicorn.workers.UvicornWorker"
+  timeout: 30
+  keepalive: 5
+
+storage:
+  # Mount root for USB drives; subdirs appear as separate storage mounts
+  base_path: "/media/usb"
+  # Max upload file size in MB
+  max_upload_mb: 500
+  # Max file listing per directory (prevent slowness on large dirs)
+  max_files_per_dir: 5000
+  # Allowed file extensions for upload (empty = all allowed)
+  allowed_extensions: []  # e.g., ["jpg", "jpeg", "png", "mp4", "pdf", "docx", "txt"]
+
+auth:
+  # Enable basic auth (username:password)
+  enabled: false
+  username: "admin"
+  password: "admin123"  # CHANGE THIS if enabled=true
+
+ui:
+  title: "RSPI File Manager"
+  refresh_interval_ms: 2000  # Auto-refresh dir listing on changes
+
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

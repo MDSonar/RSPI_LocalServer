@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RSPI File Manager</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 90vh;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 {
+            font-size: 24px;
+        }
+
+        .breadcrumb {
+            margin-top: 10px;
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .breadcrumb a {
+            color: white;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .breadcrumb a:hover {
+            text-decoration: underline;
+        }
+
+        .toolbar {
+            background: #f5f5f5;
+            padding: 15px 20px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            border-bottom: 1px solid #e0e0e0;
+            align-items: center;
+        }
+
+        button {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 5px;
+            background: #667eea;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #764ba2;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .separator {
+            width: 1px;
+            height: 24px;
+            background: #ddd;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .file-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 20px;
+            border-bottom: 1px solid #f0f0f0;
+            transition: background 0.2s;
+            cursor: pointer;
+        }
+
+        .file-item:hover {
+            background: #f9f9f9;
+        }
+
+        .file-item.selected {
+            background: #e3f2fd;
+        }
+
+        .file-icon {
+            width: 24px;
+            height: 24px;
+            margin-right: 12px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        .file-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .file-name {
+            font-weight: 500;
+            word-break: break-word;
+        }
+
+        .file-meta {
+            font-size: 12px;
+            color: #999;
+            margin-top: 4px;
+        }
+
+        .file-actions {
+            display: flex;
+            gap: 8px;
+            margin-left: 12px;
+            flex-shrink: 0;
+        }
+
+        .file-actions button {
+            padding: 6px 10px;
+            font-size: 12px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            max-width: 400px;
+            width: 100%;
+        }
+
+        .modal-header {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+
+        .modal-body {
+            margin-bottom: 20px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .modal-footer {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .modal-footer button {
+            padding: 10px 16px;
+        }
+
+        .btn-danger {
+            background: #e74c3c;
+        }
+
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+
+        .btn-secondary {
+            background: #95a5a6;
+        }
+
+        .btn-secondary:hover {
+            background: #7f8c8d;
+        }
+
+        .alert {
+            padding: 12px 20px;
+            margin: 10px 20px;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        .alert-error {
+            background: #fee;
+            color: #c33;
+            border: 1px solid #fcc;
+        }
+
+        .alert-success {
+            background: #efe;
+            color: #3c3;
+            border: 1px solid #cfc;
+        }
+
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #999;
+        }
+
+        .empty-state-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        .progress {
+            width: 100%;
+            height: 4px;
+            background: #e0e0e0;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: #667eea;
+            width: 0%;
+            transition: width 0.1s;
+        }
+
+        @media (max-width: 600px) {
+            .file-actions {
+                flex-direction: column;
+                gap: 4px;
+            }
+
+            .file-actions button {
+                width: 100%;
+            }
+
+            .toolbar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .toolbar button {
+                width: 100%;
+            }
+
+            .separator {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div>
+                <h1 id="appTitle">RSPI File Manager</h1>
+                <div class="breadcrumb">
+                    <span>📍</span>
+                    <a onclick="navigateTo('')">Root</a>
+                    <span id="breadcrumbPath"></span>
+                </div>
+            </div>
+            <div style="text-align: right; font-size: 12px;">
+                <div id="currentPath"></div>
+            </div>
+        </header>
+
+        <div class="toolbar">
+            <button onclick="triggerFileUpload()">📤 Upload File</button>
+            <button onclick="triggerFolderUpload()">📁 Upload Folder</button>
+            <div class="separator"></div>
+            <button onclick="showCreateFolderDialog()">➕ New Folder</button>
+            <div class="separator"></div>
+            <button onclick="refreshList()">🔄 Refresh</button>
+            <input type="file" id="fileInput" onchange="handleFileUpload(event)">
+            <input type="file" id="folderInput" webkitdirectory directory onchange="handleFolderUpload(event)">
+        </div>
+
+        <div id="alertContainer"></div>
+
+        <div class="file-list" id="fileList">
+            <div class="loading">Loading...</div>
+        </div>
+    </div>
+
+    <!-- New Folder Modal -->
+    <div id="mkdirModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">Create New Folder</div>
+            <div class="modal-body">
+                <input type="text" id="newFolderName" placeholder="Folder name" onkeypress="if(event.key==='Enter') createFolder()">
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="closeModal('mkdirModal')">Cancel</button>
+                <button onclick="createFolder()">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rename Modal -->
+    <div id="renameModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">Rename Item</div>
+            <div class="modal-body">
+                <input type="text" id="newItemName" placeholder="New name" onkeypress="if(event.key==='Enter') renameItem()">
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="closeModal('renameModal')">Cancel</button>
+                <button onclick="renameItem()">Rename</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">⚠️ Delete Item</div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete <strong id="deleteItemName"></strong>?</p>
+                <p style="color: #999; font-size: 12px; margin-top: 10px;">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="closeModal('deleteModal')">Cancel</button>
+                <button class="btn-danger" onclick="confirmDelete()">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentPath = "";
+        let selectedItem = null;
+
+        // Initialize
+        (async () => {
+            try {
+                const config = await fetch("/api/config").then(r => r.json());
+                document.getElementById("appTitle").textContent = config.title;
+            } catch (e) {
+                console.error("Failed to load config:", e);
+            }
+            refreshList();
+        })();
+
+        // Refresh file list
+        async function refreshList() {
+            const fileList = document.getElementById("fileList");
+            fileList.innerHTML = '<div class="loading">Loading...</div>';
+
+            try {
+                const response = await fetch(`/api/browse?path=${encodeURIComponent(currentPath)}`);
+                if (!response.ok) {
+                    showAlert("Failed to load directory", "error");
+                    return;
+                }
+
+                const data = await response.json();
+                renderFileList(data);
+                updateBreadcrumb(data);
+            } catch (e) {
+                console.error("Error:", e);
+                showAlert("Error loading directory", "error");
+            }
+        }
+
+        // Render file list
+        function renderFileList(data) {
+            const fileList = document.getElementById("fileList");
+            const items = [...data.folders, ...data.files];
+
+            if (items.length === 0) {
+                fileList.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📭</div>
+                        <div>This folder is empty</div>
+                    </div>
+                `;
+                return;
+            }
+
+            fileList.innerHTML = items.map(item => {
+                const itemPath = data.path ? `${data.path}/${item.name}` : item.name;
+                const icon = item.is_dir ? "📁" : getFileIcon(item.name);
+                const size = item.is_dir ? "" : formatSize(item.size);
+                const date = new Date(item.modified * 1000).toLocaleString();
+
+                return `
+                    <div class="file-item" onclick="selectItem(this, '${itemPath}', ${item.is_dir})">
+                        <div class="file-icon">${icon}</div>
+                        <div class="file-info">
+                            <div class="file-name">${escapeHtml(item.name)}</div>
+                            <div class="file-meta">${date}${size ? " • " + size : ""}</div>
+                        </div>
+                        <div class="file-actions">
+                            ${item.is_dir ? `<button onclick="openFolder('${itemPath}'); event.stopPropagation();">📂 Open</button>` : `<button onclick="downloadFile('${itemPath}'); event.stopPropagation();">⬇️ Download</button>`}
+                            <button onclick="showRenameDialog('${itemPath}'); event.stopPropagation();">✏️ Rename</button>
+                            <button class="btn-danger" onclick="showDeleteDialog('${itemPath}', '${escapeHtml(item.name)}'); event.stopPropagation();">🗑️ Delete</button>
+                        </div>
+                    </div>
+                `;
+            }).join("");
+        }
+
+        // Update breadcrumb
+        function updateBreadcrumb(data) {
+            const breadcrumb = document.getElementById("breadcrumbPath");
+            if (data.path) {
+                const parts = data.path.split("/");
+                breadcrumb.innerHTML = parts.map((part, i) => {
+                    const path = parts.slice(0, i + 1).join("/");
+                    return ` / <a onclick="navigateTo('${path}')">${escapeHtml(part)}</a>`;
+                }).join("");
+            } else {
+                breadcrumb.innerHTML = "";
+            }
+            document.getElementById("currentPath").textContent = `📂 ${data.path || "root"}`;
+        }
+
+        // Navigation
+        function openFolder(path) {
+            navigateTo(path);
+        }
+
+        function navigateTo(path) {
+            currentPath = path;
+            refreshList();
+        }
+
+        // File operations
+        async function uploadFile(path, file) {
+            const formData = new FormData();
+            formData.append("path", path);
+            formData.append("file", file);
+
+            try {
+                const response = await fetch("/api/upload", {
+                    method: "POST",
+                    body: formData,
+                });
+
+                if (!response.ok) {
+                    showAlert(`Upload failed: ${file.name}`, "error");
+                    return false;
+                }
+
+                return true;
+            } catch (e) {
+                console.error("Upload error:", e);
+                showAlert(`Upload error: ${file.name}`, "error");
+                return false;
+            }
+        }
+
+        function triggerFileUpload() {
+            document.getElementById("fileInput").click();
+        }
+
+        function triggerFolderUpload() {
+            document.getElementById("folderInput").click();
+        }
+
+        async function handleFileUpload(event) {
+            const files = Array.from(event.target.files);
+            if (files.length === 0) return;
+
+            let uploaded = 0;
+            for (const file of files) {
+                if (await uploadFile(currentPath, file)) {
+                    uploaded++;
+                }
+            }
+
+            showAlert(`Uploaded ${uploaded}/${files.length} file(s)`, uploaded === files.length ? "success" : "error");
+            event.target.value = "";
+            refreshList();
+        }
+
+        async function handleFolderUpload(event) {
+            const files = Array.from(event.target.files);
+            if (files.length === 0) return;
+
+            // Group files by folder structure
+            let uploaded = 0;
+            for (const file of files) {
+                const parts = file.webkitRelativePath.split("/");
+                const folders = parts.slice(0, -1);
+                let path = currentPath;
+
+                for (const folder of folders) {
+                    path = path ? `${path}/${folder}` : folder;
+                    // Create folder if needed (simplified; actual implementation may need error handling)
+                    await fetch("/api/mkdir", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                        body: `path=${encodeURIComponent(path)}&name=.`,
+                    }).catch(() => {}); // Ignore errors if folder exists
+                }
+
+                if (await uploadFile(path, file)) {
+                    uploaded++;
+                }
+            }
+
+            showAlert(`Uploaded ${uploaded}/${files.length} file(s)`, uploaded === files.length ? "success" : "error");
+            event.target.value = "";
+            refreshList();
+        }
+
+        async function downloadFile(path) {
+            const filename = path.split("/").pop();
+            const link = document.createElement("a");
+            link.href = `/api/download?path=${encodeURIComponent(path)}`;
+            link.download = filename;
+            link.click();
+        }
+
+        // Folder operations
+        function showCreateFolderDialog() {
+            document.getElementById("newFolderName").value = "";
+            document.getElementById("mkdirModal").classList.add("show");
+            document.getElementById("newFolderName").focus();
+        }
+
+        async function createFolder() {
+            const name = document.getElementById("newFolderName").value.trim();
+            if (!name) {
+                showAlert("Folder name cannot be empty", "error");
+                return;
+            }
+
+            try {
+                const response = await fetch("/api/mkdir", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: `path=${encodeURIComponent(currentPath)}&name=${encodeURIComponent(name)}`,
+                });
+
+                if (!response.ok) {
+                    showAlert("Failed to create folder", "error");
+                    return;
+                }
+
+                showAlert("Folder created successfully", "success");
+                closeModal("mkdirModal");
+                refreshList();
+            } catch (e) {
+                console.error("Error:", e);
+                showAlert("Error creating folder", "error");
+            }
+        }
+
+        // Rename
+        function showRenameDialog(path) {
+            selectedItem = path;
+            const name = path.split("/").pop();
+            document.getElementById("newItemName").value = name;
+            document.getElementById("renameModal").classList.add("show");
+            document.getElementById("newItemName").focus();
+        }
+
+        async function renameItem() {
+            const newName = document.getElementById("newItemName").value.trim();
+            if (!newName) {
+                showAlert("Name cannot be empty", "error");
+                return;
+            }
+
+            try {
+                const response = await fetch("/api/rename", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: `path=${encodeURIComponent(selectedItem)}&new_name=${encodeURIComponent(newName)}`,
+                });
+
+                if (!response.ok) {
+                    showAlert("Failed to rename", "error");
+                    return;
+                }
+
+                showAlert("Item renamed successfully", "success");
+                closeModal("renameModal");
+                refreshList();
+            } catch (e) {
+                console.error("Error:", e);
+                showAlert("Error renaming item", "error");
+            }
+        }
+
+        // Delete
+        function showDeleteDialog(path, name) {
+            selectedItem = path;
+            document.getElementById("deleteItemName").textContent = name;
+            document.getElementById("deleteModal").classList.add("show");
+        }
+
+        async function confirmDelete() {
+            try {
+                const response = await fetch("/api/delete", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: `path=${encodeURIComponent(selectedItem)}`,
+                });
+
+                if (!response.ok) {
+                    showAlert("Failed to delete", "error");
+                    return;
+                }
+
+                showAlert("Item deleted successfully", "success");
+                closeModal("deleteModal");
+                refreshList();
+            } catch (e) {
+                console.error("Error:", e);
+                showAlert("Error deleting item", "error");
+            }
+        }
+
+        // Utilities
+        function selectItem(elem, path, isDir) {
+            document.querySelectorAll(".file-item").forEach(e => e.classList.remove("selected"));
+            elem.classList.add("selected");
+            selectedItem = path;
+        }
+
+        function showAlert(message, type = "error") {
+            const container = document.getElementById("alertContainer");
+            const alert = document.createElement("div");
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            container.appendChild(alert);
+
+            setTimeout(() => alert.remove(), 5000);
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove("show");
+        }
+
+        function getFileIcon(name) {
+            const ext = name.split(".").pop().toLowerCase();
+            const icons = {
+                "jpg": "🖼️", "jpeg": "🖼️", "png": "🖼️", "gif": "🖼️",
+                "mp4": "🎬", "avi": "🎬", "mov": "🎬", "mkv": "🎬",
+                "mp3": "🎵", "wav": "🎵", "flac": "🎵",
+                "pdf": "📄", "doc": "📝", "docx": "📝", "txt": "📝", "xlsx": "📊", "zip": "📦"
+            };
+            return icons[ext] || "📄";
+        }
+
+        function formatSize(bytes) {
+            const units = ["B", "KB", "MB", "GB"];
+            let size = bytes;
+            let unitIdx = 0;
+            while (size >= 1024 && unitIdx < units.length - 1) {
+                size /= 1024;
+                unitIdx++;
+            }
+            return size.toFixed(unitIdx > 0 ? 1 : 0) + " " + units[unitIdx];
+        }
+
+        function escapeHtml(text) {
+            const map = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+
+        // Close modals on outside click
+        document.querySelectorAll(".modal").forEach(modal => {
+            modal.addEventListener("click", (e) => {
+                if (e.target === modal) {
+                    modal.classList.remove("show");
+                }
+            });
+        });
+    </script>
+</body>
+</html>
