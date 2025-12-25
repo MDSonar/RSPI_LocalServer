@@ -173,17 +173,12 @@ echo "📦 Copying application files..."
 if [ -d "$(dirname "$0")/app" ]; then
     cp -r "$(dirname "$0")/app" "$APP_HOME/"
     cp -r "$(dirname "$0")/requirements.txt" "$APP_HOME/"
-    
-    # Copy core apps only (systeminfo, taskmanager) - filemanager will be downloaded on-demand
-    mkdir -p "$APP_HOME/apps/core"
-    if [ -d "$(dirname "$0")/apps/core" ]; then
-        cp -r "$(dirname "$0")/apps/core"/* "$APP_HOME/apps/core/" 2>/dev/null || true
-        echo "✅ Core apps installed (System Info, Task Manager)"
+
+    # Copy apps (core and optional) for offline fallback; dashboard controls install state
+    if [ -d "$(dirname "$0")/apps" ]; then
+        cp -r "$(dirname "$0")/apps" "$APP_HOME/" 2>/dev/null || true
+        echo "✅ Apps directory copied (core + optional for fallback)"
     fi
-    
-    # Create optional apps directory for runtime installations
-    mkdir -p "$APP_HOME/apps/optional"
-    echo "📂 Optional apps directory created for on-demand installation"
 else
     echo "❌ Application files not found. Run this script from the project root directory."
     exit 1

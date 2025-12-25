@@ -32,7 +32,15 @@ file_manager = FileManager()
 # App state management
 APPS_STATE_FILE = Path("/opt/rspi-localserver/apps_state.json")
 APPS_DIR = Path("/opt/rspi-localserver/apps")
-GITHUB_RAW_BASE = "https://raw.githubusercontent.com/MDSonar/RSPI_LocalServer/main/apps"
+# Local repo copy (for offline installs); install.sh will place apps/ here
+LOCAL_REPO_APPS = Path(__file__).parent.parent / "apps"
+
+# GitHub raw base (configurable)
+cfg = get_config()
+GITHUB_RAW_BASE = cfg.get(
+    "apps.github_raw_base",
+    "https://raw.githubusercontent.com/MDSonar/RSPI_LocalServer/main/apps",
+)
 
 def load_app_state():
     """Load installed apps state."""
@@ -64,6 +72,15 @@ def get_app_manifest(app_id):
             except:
                 pass
     
+    # Try local repo copy (offline support)
+    for category in ["core", "optional"]:
+        manifest_path = LOCAL_REPO_APPS / category / app_id / "manifest.json"
+        if manifest_path.exists():
+            try:
+                return json.loads(manifest_path.read_text())
+            except:
+                pass
+
     # Try GitHub
     try:
         for category in ["core", "optional"]:
@@ -92,17 +109,31 @@ def download_app_from_github(app_id):
     app_dir = APPS_DIR / category / app_id
     app_dir.mkdir(parents=True, exist_ok=True)
     
-    # Download manifest
-    manifest_url = f"{GITHUB_RAW_BASE}/{category}/{app_id}/manifest.json"
+    # Download manifest (GitHub first, then local fallback)
     manifest_path = app_dir / "manifest.json"
-    urllib.request.urlretrieve(manifest_url, str(manifest_path))
-    
+    try:
+        manifest_url = f"{GITHUB_RAW_BASE}/{category}/{app_id}/manifest.json"
+        urllib.request.urlretrieve(manifest_url, str(manifest_path))
+    except Exception as e:
+        logger.warning(f"GitHub manifest fetch failed for {app_id}: {e}; trying local copy")
+        local_manifest = LOCAL_REPO_APPS / category / app_id / "manifest.json"
+        if not local_manifest.exists():
+            raise
+        shutil.copy(local_manifest, manifest_path)
+
     # Download each file
     for file_name in manifest["files"]:
-        file_url = f"{GITHUB_RAW_BASE}/{category}/{app_id}/{file_name}"
         file_path = app_dir / file_name
-        urllib.request.urlretrieve(file_url, str(file_path))
-        logger.info(f"Downloaded {file_name} for app {app_id}")
+        try:
+            file_url = f"{GITHUB_RAW_BASE}/{category}/{app_id}/{file_name}"
+            urllib.request.urlretrieve(file_url, str(file_path))
+            logger.info(f"Downloaded {file_name} for app {app_id}")
+        except Exception as e:
+            logger.warning(f"GitHub fetch failed for {file_name}: {e}; trying local copy")
+            local_file = LOCAL_REPO_APPS / category / app_id / file_name
+            if not local_file.exists():
+                raise
+            shutil.copy(local_file, file_path)
     
     return True
 
