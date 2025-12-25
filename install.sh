@@ -77,17 +77,28 @@ MOUNT_SCRIPT
 
 chmod +x /usr/local/bin/usb-mount.sh
 
-# Setup udev rules to call the mount script
-cat > /etc/udev/rules.d/99-automount.rules << UDEV_EOF
-# Auto-mount USB storage devices
-ACTION=="add", SUBSYSTEM=="block", KERNEL=="sd*[0-9]", ENV{ID_FS_TYPE}!="", \
-    RUN+="/usr/local/bin/usb-mount.sh add /dev/%k"
+# Create systemd service for USB mounting
+cat > /etc/systemd/system/usb-mount@.service << 'SERVICE_EOF'
+[Unit]
+Description=Mount USB Drive %I
+After=local-fs.target
 
-ACTION=="remove", SUBSYSTEM=="block", KERNEL=="sd*[0-9]", \
-    RUN+="/usr/local/bin/usb-mount.sh remove /dev/%k"
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/usb-mount.sh add /dev/%i
+ExecStop=/usr/local/bin/usb-mount.sh remove /dev/%i
+SERVICE_EOF
+
+# Setup udev rules to trigger systemd service
+cat > /etc/udev/rules.d/99-automount.rules << UDEV_EOF
+# Auto-mount USB storage devices via systemd
+ACTION=="add", SUBSYSTEM=="block", KERNEL=="sd*[0-9]", ENV{ID_FS_TYPE}!="", \
+    TAG+="systemd", ENV{SYSTEMD_WANTS}+="usb-mount@%k.service"
 UDEV_EOF
 
-# Reload udev rules
+# Reload systemd and udev
+systemctl daemon-reload
 udevadm control --reload
 udevadm trigger
 
