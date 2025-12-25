@@ -3,6 +3,7 @@ import logging
 import json
 import subprocess
 import psutil
+import mimetypes
 import urllib.request
 import urllib.error
 import shutil
@@ -10,8 +11,8 @@ import time
 from collections import deque
 from datetime import datetime
 from threading import Lock
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends, Header
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
@@ -252,6 +253,84 @@ async def taskmanager_app(authorization: str = None):
     return "<h1>Task Manager</h1><p>App not found</p>"
 
 
+@app.get("/apps/videoplayer", response_class=HTMLResponse)
+async def videoplayer_app(authorization: str = None):
+    """Serve the video player app (optional)."""
+    verify_auth(authorization)
+
+    # Prefer installed optional app
+    ui_path = APPS_DIR / "optional" / "videoplayer" / "videoplayer.html"
+    if ui_path.exists():
+        return ui_path.read_text()
+
+    # Dev/offline fallback to local repo copy
+    repo_ui = LOCAL_REPO_APPS / "optional" / "videoplayer" / "videoplayer.html"
+    if repo_ui.exists():
+        return repo_ui.read_text()
+
+    return "<h1>Video Player</h1><p>App not installed. Install from dashboard.</p>"
+
+
+@app.get("/api/video/stream")
+async def stream_video(path: str, authorization: str = None, range: str = Header(default=None)):
+    """Stream a video file with Range support so the browser can seek efficiently."""
+    verify_auth(authorization)
+
+    safe_path = file_manager.validator.safe_path(path)
+    if not safe_path or not safe_path.exists() or not safe_path.is_file():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    allowed_ext = {".mp4", ".mkv", ".mov", ".avi", ".webm", ".m4v"}
+    if safe_path.suffix.lower() not in allowed_ext:
+        raise HTTPException(status_code=400, detail="Unsupported video type")
+
+    file_size = safe_path.stat().st_size
+    content_type = mimetypes.guess_type(safe_path.name)[0] or "application/octet-stream"
+
+    start = 0
+    end = file_size - 1
+    status_code = 200
+
+    if range and range.startswith("bytes="):
+        # Parse Range header: bytes=start-end
+        try:
+            parts = range.replace("bytes=", "").split("-")
+            if parts[0]:
+                start = int(parts[0])
+            if len(parts) > 1 and parts[1]:
+                end = int(parts[1])
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid Range header")
+
+        start = max(0, min(start, file_size - 1))
+        end = max(start, min(end, file_size - 1))
+        status_code = 206
+
+    def iter_file(s: int, e: int):
+        chunk_size = 1024 * 256  # 256KB chunks
+        with open(safe_path, "rb") as f:
+            f.seek(s)
+            bytes_left = e - s + 1
+            while bytes_left > 0:
+                read_len = min(chunk_size, bytes_left)
+                data = f.read(read_len)
+                if not data:
+                    break
+                bytes_left -= len(data)
+                yield data
+
+    headers = {
+        "Content-Type": content_type,
+        "Accept-Ranges": "bytes",
+        "Content-Length": str(end - start + 1)
+    }
+
+    if status_code == 206:
+        headers["Content-Range"] = f"bytes {start}-{end}/{file_size}"
+
+    return StreamingResponse(iter_file(start, end), status_code=status_code, headers=headers)
+
+
 # App Management APIs
 @app.get("/api/apps/status")
 async def get_apps_status(authorization: str = None):
@@ -265,7 +344,7 @@ async def install_app(app_id: str = Form(...), authorization: str = None):
     """Install an app by downloading from GitHub."""
     verify_auth(authorization)
     
-    valid_apps = ["filemanager", "systeminfo", "taskmanager"]
+    valid_apps = ["filemanager", "systeminfo", "taskmanager", "videoplayer"]
     if app_id not in valid_apps:
         raise HTTPException(status_code=400, detail="Invalid app ID")
     

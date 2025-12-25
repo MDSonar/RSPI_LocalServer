@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Player</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #e0e0e8;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1000px; margin: 0 auto; }
+        .card {
+            background: rgba(30, 30, 46, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+            padding: 18px;
+        }
+        h1 { font-size: 22px; margin-bottom: 12px; }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+        }
+        input[type="text"] {
+            flex: 1;
+            min-width: 260px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.15);
+            background: rgba(0,0,0,0.35);
+            color: #e0e0e8;
+        }
+        input::placeholder { color: #8f9bb3; }
+        button {
+            padding: 10px 14px;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.35);
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+        button:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(102, 126, 234, 0.45); }
+        .meta { color: #9aa0b5; font-size: 13px; margin-bottom: 12px; }
+        .video-wrap {
+            width: 100%;
+            background: rgba(0,0,0,0.35);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            overflow: hidden;
+            position: relative;
+        }
+        video { width: 100%; height: auto; background: #000; }
+        .empty {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            color: #8f9bb3;
+            font-size: 14px;
+        }
+        .tips { margin-top: 14px; color: #9aa0b5; font-size: 13px; line-height: 1.5; }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: rgba(102,126,234,0.16);
+            border: 1px solid rgba(102,126,234,0.25);
+            color: #cbd5ff;
+            font-size: 12px;
+            margin-left: 8px;
+        }
+        @media (max-width: 600px) {
+            .controls { flex-direction: column; }
+            button { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>Video Player <span class="badge">Optional App</span></h1>
+            <div class="meta">Play USB-hosted videos directly in your browser. Paste a relative path from File Manager or open this app from a file link.</div>
+            <div class="controls">
+                <input id="pathInput" type="text" placeholder="e.g. Movies/demo.mp4" />
+                <button onclick="loadVideo()">Play Video</button>
+            </div>
+            <div class="video-wrap">
+                <video id="player" controls preload="metadata"></video>
+                <div id="emptyState" class="empty">No video loaded. Enter a path and click Play.</div>
+            </div>
+            <div class="tips">
+                Tips:
+                <br>• Use paths relative to your USB root (same as File Manager).
+                <br>• Supports: mp4, mkv, mov, avi, webm, m4v.
+                <br>• If opened from File Manager, append ?path=your/video.mp4 to this app URL.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function getQueryPath() {
+            const params = new URLSearchParams(window.location.search);
+            const p = params.get('path');
+            return p ? decodeURIComponent(p) : '';
+        }
+
+        function loadVideo(path) {
+            const input = document.getElementById('pathInput');
+            const finalPath = (path || input.value || '').trim();
+            if (!finalPath) {
+                alert('Enter a video path first.');
+                return;
+            }
+            const src = `/api/video/stream?path=${encodeURIComponent(finalPath)}`;
+            const video = document.getElementById('player');
+            video.src = src;
+            video.load();
+            video.play().catch(() => {});
+            document.getElementById('emptyState').style.display = 'none';
+        }
+
+        (function init() {
+            const qp = getQueryPath();
+            if (qp) {
+                document.getElementById('pathInput').value = qp;
+                loadVideo(qp);
+            }
+        })();
+    </script>
+</body>
+</html>

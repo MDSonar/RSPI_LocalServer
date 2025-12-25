@@ -1,0 +1,8 @@
+{
+  "name": "Video Player",
+  "version": "1.0.0",
+  "description": "Stream and play video files from USB in the browser.",
+  "files": ["videoplayer.html"],
+  "dependencies": [],
+  "route": "/apps/videoplayer"
+}
