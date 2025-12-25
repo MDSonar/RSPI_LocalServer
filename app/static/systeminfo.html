@@ -4,52 +4,53 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>System Info</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            background: #f5f6fa;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
             min-height: 100vh;
             padding: 20px;
+            color: #e0e0e8;
         }
-        .container { max-width: 900px; margin: 0 auto; }
+        .container { max-width: 1200px; margin: 0 auto; }
         header {
             text-align: center;
             margin-bottom: 16px;
         }
         h1 {
             font-size: 24px;
-            color: #333;
+            color: #e0e0e8;
+        }
+        h3 {
+            color: #e0e0e8;
+            margin-bottom: 12px;
+            font-size: 16px;
         }
         .card {
-            background: #fff;
-            border: 1px solid #eee;
+            background: rgba(30, 30, 46, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 12px;
-            box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+            box-shadow: 0 6px 18px rgba(0,0,0,0.3);
             padding: 16px;
+            margin-bottom: 16px;
         }
         .grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 12px;
             margin-top: 12px;
         }
         .stat {
-            padding: 12px;
-            background: #fafafa;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.3);
             border-radius: 8px;
-            border: 1px solid #eee;
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
-        .label { color: #666; font-size: 12px; }
-        .value { color: #222; font-size: 16px; font-weight: 600; margin-top: 4px; }
-        .sub { color: #888; font-size: 12px; margin-top: 2px; }
-        .footer {
-            margin-top: 12px;
-            display: flex;
-            justify-content: space-between;
-            color: #555;
-            font-size: 12px;
-        }
+        .label { color: #9090a0; font-size: 11px; }
+        .value { color: #e0e0e8; font-size: 14px; font-weight: 600; margin-top: 3px; }
+        .sub { color: #b0b0c0; font-size: 11px; margin-top: 2px; }
         .actions {
             margin-top: 14px;
             display: flex;
@@ -58,8 +59,9 @@
         .btn {
             padding: 8px 12px;
             border-radius: 8px;
-            border: 1px solid #ddd;
-            background: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.1);
+            color: #d0d0d8;
             cursor: pointer;
             font-weight: 600;
         }
@@ -67,6 +69,15 @@
             border-color: #667eea;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: #fff;
+        }
+        .section { margin-bottom: 8px; }
+        .list-item {
+            padding: 6px 8px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 6px;
+            margin-bottom: 4px;
+            font-size: 12px;
+            color: #d0d0d8;
         }
     </style>
 </head>
@@ -77,40 +88,213 @@
         </header>
 
         <div class="card">
+            <h3>30-Minute Trend</h3>
+            <canvas id="trendChart" style="max-height: 200px;"></canvas>
+        </div>
+
+        <div class="card">
+            <h3>CPU</h3>
             <div class="grid">
                 <div class="stat">
-                    <div class="label">CPU</div>
-                    <div class="value" id="cpuPercent">--%</div>
-                    <div class="sub" id="cpuMeta">-- cores · -- MHz</div>
-                    <div class="sub" id="cpuLoad">Load: -- / -- / --</div>
+                    <div class="label">Usage (Total)</div>
+                    <div class="value" id="cpuTotal">--%</div>
                 </div>
                 <div class="stat">
-                    <div class="label">Memory</div>
+                    <div class="label">Frequency</div>
+                    <div class="value" id="cpuFreq">-- MHz</div>
+                    <div class="sub" id="cpuFreqRange">min/max: --</div>
+                </div>
+                <div class="stat">
+                    <div class="label">Load Avg</div>
+                    <div class="value" id="cpuLoad">-- / -- / --</div>
+                </div>
+                <div class="stat">
+                    <div class="label">Context Switches</div>
+                    <div class="value" id="cpuCtx">--</div>
+                </div>
+                <div class="stat">
+                    <div class="label">Interrupts</div>
+                    <div class="value" id="cpuInt">--</div>
+                </div>
+            </div>
+            <div class="section" style="margin-top: 12px;">
+                <div class="label">Per-Core Usage</div>
+                <div id="cpuCores" style="margin-top: 4px; font-size: 12px; color: #d0d0d8;">--</div>
+            </div>
+            <div class="section" style="margin-top: 8px;">
+                <div class="label">CPU Times</div>
+                <div id="cpuTimes" style="margin-top: 4px; font-size: 12px; color: #d0d0d8;">--</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Memory</h3>
+            <div class="grid">
+                <div class="stat">
+                    <div class="label">RAM Usage</div>
                     <div class="value" id="memPercent">--%</div>
-                    <div class="sub" id="memMeta">-- / --</div>
-                    <div class="sub" id="swapMeta">Swap: -- / -- (--) </div>
+                    <div class="sub" id="memUsed">used / total</div>
                 </div>
                 <div class="stat">
-                    <div class="label">Disk</div>
-                    <div class="value" id="diskPercent">--%</div>
-                    <div class="sub" id="diskMeta">-- / --</div>
-                    <div class="sub" id="mountsMeta">Mounts: --</div>
+                    <div class="label">Available</div>
+                    <div class="value" id="memAvail">-- GB</div>
                 </div>
                 <div class="stat">
-                    <div class="label">Temperature</div>
-                    <div class="value" id="tempValue">--</div>
-                    <div class="sub" id="modelValue">--</div>
+                    <div class="label">Cached</div>
+                    <div class="value" id="memCached">-- GB</div>
                 </div>
                 <div class="stat">
-                    <div class="label">Throttle Status</div>
-                    <div class="value" id="throttleNow">--</div>
-                    <div class="sub" id="throttleHist">History: --</div>
+                    <div class="label">Buffered</div>
+                    <div class="value" id="memBuffered">-- GB</div>
+                </div>
+                <div class="stat">
+                    <div class="label">Swap</div>
+                    <div class="value" id="swapPercent">--%</div>
+                    <div class="sub" id="swapUsed">used / total</div>
+                </div>
+                <div class="stat">
+                    <div class="label">Swap I/O</div>
+                    <div class="value" id="swapIO">In: -- / Out: --</div>
                 </div>
             </div>
-            <div class="footer">
-                <div id="uptimeValue">Uptime: --</div>
-                <div id="platformValue">Platform: --</div>
+        </div>
+
+        <div class="card">
+            <h3>Disk</h3>
+            <div class="grid">
+                <div class="stat">
+                    <div class="label">Root FS Usage</div>
+                    <div class="value" id="diskRoot">--%</div>
+                    <div class="sub" id="diskRootSub">used / total</div>
+                </div>
+                <div class="stat">
+                    <div class="label">Read Bytes</div>
+                    <div class="value" id="diskReadBytes">--</div>
+                </div>
+                <div class="stat">
+                    <div class="label">Write Bytes</div>
+                    <div class="value" id="diskWriteBytes">--</div>
+                </div>
+                <div class="stat">
+                    <div class="label">Read Count</div>
+                    <div class="value" id="diskReadCount">--</div>
+                </div>
+                <div class="stat">
+                    <div class="label">Write Count</div>
+                    <div class="value" id="diskWriteCount">--</div>
+                </div>
             </div>
+            <div class="section" style="margin-top: 12px;">
+                <div class="label">Partitions</div>
+                <div id="diskPartitions" style="margin-top: 4px;">--</div>
+            </div>
+            <div class="section" style="margin-top: 8px;">
+                <div class="label">USB Mounts</div>
+                <div id="diskMounts" style="margin-top: 4px;">--</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Network</h3>
+            <div class="grid">
+                <div class="stat">
+                    <div class="label">Active Connections</div>
+                    <div class="value" id="netConnections">--</div>
+                </div>
+            </div>
+            <div class="section" style="margin-top: 12px;">
+                <div class="label">Interfaces</div>
+                <div id="netInterfaces" style="margin-top: 4px;">--</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Processes</h3>
+            <div class="grid">
+                <div class="stat">
+                    <div class="label">Total Running</div>
+                    <div class="value" id="procTotal">--</div>
+                </div>
+                <div class="stat">
+                    <div class="label">Zombies</div>
+                    <div class="value" id="procZombies">--</div>
+                </div>
+            </div>
+            <div class="section" style="margin-top: 12px;">
+                <div class="label">Top CPU-Consuming</div>
+                <div id="procTopCPU" style="margin-top: 4px;">--</div>
+            </div>
+            <div class="section" style="margin-top: 8px;">
+                <div class="label">Top Memory-Consuming</div>
+                <div id="procTopMem" style="margin-top: 4px;">--</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Hardware</h3>
+            <div class="grid">
+                <div class="stat">
+                    <div class="label">CPU Temperature</div>
+                    <div class="value" id="hwTemp">-- °C</div>
+                </div>
+                <div class="stat">
+                    <div class="label">GPU Temperature</div>
+                    <div class="value" id="hwGPUTemp">-- °C</div>
+                </div>
+                <div class="stat">
+                    <div class="label">Model</div>
+                    <div class="value" id="hwModel" style="font-size: 12px;">--</div>
+                </div>
+                <div class="stat">
+                    <div class="label">Revision</div>
+                    <div class="value" id="hwRevision">--</div>
+                </div>
+                <div class="stat">
+                    <div class="label">Serial</div>
+                    <div class="value" id="hwSerial" style="font-size: 11px;">--</div>
+                </div>
+            </div>
+            <div class="section" style="margin-top: 12px;">
+                <div class="label">Throttling Status</div>
+                <div id="hwThrottle" style="margin-top: 4px; font-size: 12px; color: #d0d0d8;">--</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>System</h3>
+            <div class="grid">
+                <div class="stat">
+                    <div class="label">Uptime</div>
+                    <div class="value" id="sysUptime">--</div>
+                </div>
+                <div class="stat">
+                    <div class="label">Boot Time</div>
+                    <div class="value" id="sysBootTime">--</div>
+                </div>
+                <div class="stat">
+                    <div class="label">Platform</div>
+                    <div class="value" id="sysPlatform">--</div>
+                </div>
+                <div class="stat">
+                    <div class="label">Architecture</div>
+                    <div class="value" id="sysArch">--</div>
+                </div>
+                <div class="stat">
+                    <div class="label">Hostname</div>
+                    <div class="value" id="sysHostname">--</div>
+                </div>
+            </div>
+            <div class="section" style="margin-top: 12px;">
+                <div class="label">Logged-in Users</div>
+                <div id="sysUsers" style="margin-top: 4px; font-size: 12px; color: #d0d0d8;">--</div>
+            </div>
+            <div class="section" style="margin-top: 8px;">
+                <div class="label">USB Devices</div>
+                <div id="sysUSB" style="margin-top: 4px; font-size: 11px; color: #d0d0d8;">--</div>
+            </div>
+        </div>
+
+        <div class="card">
             <div class="actions">
                 <button class="btn" onclick="location.href='/'">← Dashboard</button>
                 <button class="btn-primary" onclick="location.reload()">↻ Refresh</button>
@@ -119,6 +303,8 @@
     </div>
 
     <script>
+        let trendChart = null;
+
         function formatBytes(bytes) {
             if (bytes == null) return "--";
             const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -135,62 +321,207 @@
             if (h > 0) return `${h}h ${m}m`;
             return `${m}m`;
         }
-        async function loadConfig() {
-            try {
-                const r = await fetch('/api/config');
-                if (!r.ok) return 2000;
-                const c = await r.json();
-                return c.refreshInterval || 2000;
-            } catch { return 2000; }
+        function formatTimestamp(ts) {
+            const date = new Date(ts * 1000);
+            return date.toLocaleTimeString();
         }
+        
+        async function initChart() {
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            trendChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'CPU %',
+                            data: [],
+                            borderColor: 'rgb(102, 126, 234)',
+                            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.3
+                        },
+                        {
+                            label: 'Memory %',
+                            data: [],
+                            borderColor: 'rgb(167, 139, 250)',
+                            backgroundColor: 'rgba(167, 139, 250, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.3
+                        },
+                        {
+                            label: 'Temp °C',
+                            data: [],
+                            borderColor: 'rgb(245, 101, 101)',
+                            backgroundColor: 'rgba(245, 101, 101, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.3,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: { color: '#e0e0e8' }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#9090a0', maxTicksLimit: 8 },
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' }
+                        },
+                        y: {
+                            type: 'linear',
+                            position: 'left',
+                            ticks: { color: '#9090a0' },
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            title: { display: true, text: 'CPU/Memory %', color: '#e0e0e8' }
+                        },
+                        y1: {
+                            type: 'linear',
+                            position: 'right',
+                            ticks: { color: '#9090a0' },
+                            grid: { display: false },
+                            title: { display: true, text: 'Temp °C', color: '#e0e0e8' }
+                        }
+                    }
+                }
+            });
+        }
+
+        async function updateChart() {
+            try {
+                const r = await fetch('/api/system/history');
+                if (!r.ok) return;
+                const h = await r.json();
+                
+                const labels = h.timestamps.map(t => formatTimestamp(t));
+                
+                trendChart.data.labels = labels;
+                trendChart.data.datasets[0].data = h.cpu_percent;
+                trendChart.data.datasets[1].data = h.memory_percent;
+                trendChart.data.datasets[2].data = h.temperature;
+                trendChart.update('none');
+            } catch(e) {
+                console.error('Chart update failed:', e);
+            }
+        }
+
         async function refresh() {
             try {
                 const r = await fetch('/api/system/info');
                 if (!r.ok) return;
                 const d = await r.json();
-                document.getElementById('cpuPercent').textContent = `${d.cpu.percent}%`;
-                document.getElementById('cpuMeta').textContent = `${d.cpu.count} cores · ${d.cpu.freq || '--'} MHz`;
+                
+                // CPU
+                document.getElementById('cpuTotal').textContent = `${d.cpu.percent_total}%`;
+                document.getElementById('cpuFreq').textContent = `${d.cpu.freq_current || '--'} MHz`;
+                document.getElementById('cpuFreqRange').textContent = `min/max: ${d.cpu.freq_min||'--'}/${d.cpu.freq_max||'--'}`;
                 if (d.cpu.load_avg) {
-                    const la = d.cpu.load_avg;
-                    document.getElementById('cpuLoad').textContent = `Load: ${la['1m']} / ${la['5m']} / ${la['15m']}`;
+                    document.getElementById('cpuLoad').textContent = `${d.cpu.load_avg['1m']} / ${d.cpu.load_avg['5m']} / ${d.cpu.load_avg['15m']}`;
                 }
+                document.getElementById('cpuCtx').textContent = d.cpu.ctx_switches.toLocaleString();
+                document.getElementById('cpuInt').textContent = d.cpu.interrupts.toLocaleString();
+                document.getElementById('cpuCores').textContent = d.cpu.percent_per_core.map((c, i) => `Core ${i}: ${c}%`).join(' · ');
+                if (d.cpu.times) {
+                    document.getElementById('cpuTimes').textContent = `User: ${d.cpu.times.user}s · System: ${d.cpu.times.system}s · Idle: ${d.cpu.times.idle}s${d.cpu.times.iowait ? ' · IOWait: '+d.cpu.times.iowait+'s' : ''}`;
+                }
+                
+                // Memory
                 document.getElementById('memPercent').textContent = `${d.memory.percent}%`;
-                document.getElementById('memMeta').textContent = `${formatBytes(d.memory.used)} / ${formatBytes(d.memory.total)}`;
-                document.getElementById('swapMeta').textContent = `Swap: ${formatBytes(d.memory.swap_used)} / ${formatBytes(d.memory.swap_total)} (${d.memory.swap_percent}% )`;
-                document.getElementById('diskPercent').textContent = `${d.disk.percent}%`;
-                document.getElementById('diskMeta').textContent = `${formatBytes(d.disk.used)} / ${formatBytes(d.disk.total)}`;
-                if (Array.isArray(d.disk.mounts)) {
-                    const count = d.disk.mounts.length;
-                    const summary = d.disk.mounts.slice(0,3).map(m => `${m.path.split('/').pop()}:${m.percent!=null?m.percent+'%':'N/A'}`).join(', ');
-                    document.getElementById('mountsMeta').textContent = `Mounts: ${count}${summary ? ' · '+summary : ''}`;
-                }
-                document.getElementById('tempValue').textContent = d.temperature != null ? `${d.temperature}°C` : 'N/A';
-                document.getElementById('modelValue').textContent = d.model || '--';
-                if (d.throttled) {
+                document.getElementById('memUsed').textContent = `${formatBytes(d.memory.used)} / ${formatBytes(d.memory.total)}`;
+                document.getElementById('memAvail').textContent = formatBytes(d.memory.available);
+                document.getElementById('memCached').textContent = formatBytes(d.memory.cached);
+                document.getElementById('memBuffered').textContent = formatBytes(d.memory.buffers);
+                document.getElementById('swapPercent').textContent = `${d.memory.swap_percent}%`;
+                document.getElementById('swapUsed').textContent = `${formatBytes(d.memory.swap_used)} / ${formatBytes(d.memory.swap_total)}`;
+                document.getElementById('swapIO').textContent = `In: ${formatBytes(d.memory.swap_in)} / Out: ${formatBytes(d.memory.swap_out)}`;
+                
+                // Disk
+                document.getElementById('diskRoot').textContent = `${d.disk.root.percent}%`;
+                document.getElementById('diskRootSub').textContent = `${formatBytes(d.disk.root.used)} / ${formatBytes(d.disk.root.total)}`;
+                document.getElementById('diskReadBytes').textContent = formatBytes(d.disk.io.read_bytes);
+                document.getElementById('diskWriteBytes').textContent = formatBytes(d.disk.io.write_bytes);
+                document.getElementById('diskReadCount').textContent = (d.disk.io.read_count || 0).toLocaleString();
+                document.getElementById('diskWriteCount').textContent = (d.disk.io.write_count || 0).toLocaleString();
+                
+                const partHTML = d.disk.partitions.map(p => 
+                    `<div class="list-item">${p.device} → ${p.mountpoint} (${p.fstype})</div>`
+                ).join('');
+                document.getElementById('diskPartitions').innerHTML = partHTML || '<div class="sub">None</div>';
+                
+                const mountHTML = d.disk.mounts.map(m => 
+                    `<div class="list-item">${m.path}: ${m.percent}% (${formatBytes(m.used)} / ${formatBytes(m.total)})</div>`
+                ).join('');
+                document.getElementById('diskMounts').innerHTML = mountHTML || '<div class="sub">None</div>';
+                
+                // Network
+                document.getElementById('netConnections').textContent = d.network.active_connections;
+                const ifaceHTML = d.network.interfaces.map(iface => {
+                    const addrs = iface.addresses.map(a => a.address).slice(0, 2).join(', ');
+                    return `<div class="list-item">${iface.name}: ↑ ${formatBytes(iface.bytes_sent)} ↓ ${formatBytes(iface.bytes_recv)}${addrs ? ' · '+addrs : ''}</div>`;
+                }).join('');
+                document.getElementById('netInterfaces').innerHTML = ifaceHTML || '<div class="sub">None</div>';
+                
+                // Processes
+                document.getElementById('procTotal').textContent = d.processes.total;
+                document.getElementById('procZombies').textContent = d.processes.zombie_count;
+                const topCPUHTML = d.processes.top_cpu.map(p => 
+                    `<div class="list-item">${p.name} (${p.pid}): ${p.cpu}% CPU</div>`
+                ).join('');
+                document.getElementById('procTopCPU').innerHTML = topCPUHTML || '<div class="sub">None</div>';
+                const topMemHTML = d.processes.top_memory.map(p => 
+                    `<div class="list-item">${p.name} (${p.pid}): ${p.memory}% RAM</div>`
+                ).join('');
+                document.getElementById('procTopMem').innerHTML = topMemHTML || '<div class="sub">None</div>';
+                
+                // Hardware
+                document.getElementById('hwTemp').textContent = d.hardware.temperature ? `${d.hardware.temperature} °C` : 'N/A';
+                document.getElementById('hwGPUTemp').textContent = d.hardware.gpu_temperature ? `${d.hardware.gpu_temperature} °C` : 'N/A';
+                document.getElementById('hwModel').textContent = d.hardware.model || '--';
+                document.getElementById('hwRevision').textContent = d.hardware.revision || '--';
+                document.getElementById('hwSerial').textContent = d.hardware.serial || '--';
+                
+                if (d.hardware.throttled) {
                     const nowFlags = [];
-                    if (d.throttled.under_voltage) nowFlags.push('UV');
-                    if (d.throttled.freq_capped) nowFlags.push('FC');
-                    if (d.throttled.throttled) nowFlags.push('TH');
-                    if (d.throttled.temp_limit) nowFlags.push('TL');
-                    document.getElementById('throttleNow').textContent = nowFlags.length ? nowFlags.join(', ') : 'Normal';
+                    if (d.hardware.throttled.under_voltage) nowFlags.push('Under Voltage');
+                    if (d.hardware.throttled.freq_capped) nowFlags.push('Freq Capped');
+                    if (d.hardware.throttled.throttled) nowFlags.push('Throttled');
+                    if (d.hardware.throttled.temp_limit) nowFlags.push('Temp Limit');
                     const histFlags = [];
-                    if (d.throttled.under_voltage_has_occurred) histFlags.push('UV');
-                    if (d.throttled.freq_capped_has_occurred) histFlags.push('FC');
-                    if (d.throttled.throttled_has_occurred) histFlags.push('TH');
-                    if (d.throttled.temp_limit_has_occurred) histFlags.push('TL');
-                    document.getElementById('throttleHist').textContent = histFlags.length ? histFlags.join(', ') : 'None';
+                    if (d.hardware.throttled.under_voltage_has_occurred) histFlags.push('UV');
+                    if (d.hardware.throttled.freq_capped_has_occurred) histFlags.push('FC');
+                    if (d.hardware.throttled.throttled_has_occurred) histFlags.push('TH');
+                    if (d.hardware.throttled.temp_limit_has_occurred) histFlags.push('TL');
+                    document.getElementById('hwThrottle').innerHTML = `Now: ${nowFlags.length ? nowFlags.join(', ') : 'Normal'}<br>History: ${histFlags.length ? histFlags.join(', ') : 'None'}`;
                 } else {
-                    document.getElementById('throttleNow').textContent = 'Unknown';
-                    document.getElementById('throttleHist').textContent = 'Unknown';
+                    document.getElementById('hwThrottle').textContent = 'Unknown';
                 }
-                document.getElementById('uptimeValue').textContent = `Uptime: ${formatUptime(d.uptime_seconds)}`;
-                document.getElementById('platformValue').textContent = `Platform: ${d.platform || '--'}`;
-            } catch {}
+                
+                // System
+                document.getElementById('sysUptime').textContent = formatUptime(d.system.uptime_seconds);
+                document.getElementById('sysBootTime').textContent = formatTimestamp(d.system.boot_time);
+                document.getElementById('sysPlatform').textContent = `${d.system.platform} ${d.system.platform_release}`;
+                document.getElementById('sysArch').textContent = d.system.architecture;
+                document.getElementById('sysHostname').textContent = d.system.hostname;
+                document.getElementById('sysUsers').textContent = d.system.logged_in_users.join(', ') || 'None';
+                const usbHTML = d.system.usb_devices.map(u => `<div class="list-item">${u}</div>`).join('');
+                document.getElementById('sysUSB').innerHTML = usbHTML || '<div class="sub">None</div>';
+                
+                // Update chart
+                await updateChart();
+            } catch(e) {
+                console.error('Refresh failed:', e);
+            }
         }
+        
         (async function init(){
-            const interval = await loadConfig();
+            await initChart();
             await refresh();
-            setInterval(refresh, interval);
+            setInterval(refresh, 3000);
         })();
     </script>
 </body>

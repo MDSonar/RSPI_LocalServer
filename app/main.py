@@ -6,6 +6,10 @@ import psutil
 import urllib.request
 import urllib.error
 import shutil
+import time
+from collections import deque
+from datetime import datetime
+from threading import Lock
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -17,6 +21,10 @@ from .file_manager import FileManager
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="RSPI LocalServer", version="2.0.0")
+
+# Time-series buffer for 30-minute trends (collect every 10 seconds = 180 samples)
+metrics_history = deque(maxlen=180)
+metrics_lock = Lock()
 
 # Configure CORS for LAN access
 app.add_middleware(
@@ -314,135 +322,335 @@ async def uninstall_app(app_id: str = Form(...), authorization: str = None):
 
 
 # System Info APIs
+def collect_system_metrics():
+    """Collect comprehensive system metrics."""
+    import platform
+    import os
+    
+    data = {}
+    
+    # ===== CPU =====
+    cpu_percent_total = psutil.cpu_percent(interval=0.5)
+    cpu_percent_per_core = psutil.cpu_percent(interval=0, percpu=True)
+    cpu_freq = psutil.cpu_freq()
+    cpu_times = psutil.cpu_times()
+    cpu_stats = psutil.cpu_stats()
+    
+    data["cpu"] = {
+        "percent_total": round(cpu_percent_total, 1),
+        "percent_per_core": [round(c, 1) for c in cpu_percent_per_core] if cpu_percent_per_core else [],
+        "count": psutil.cpu_count(),
+        "freq_current": round(cpu_freq.current, 0) if cpu_freq else None,
+        "freq_min": round(cpu_freq.min, 0) if cpu_freq and cpu_freq.min else None,
+        "freq_max": round(cpu_freq.max, 0) if cpu_freq and cpu_freq.max else None,
+        "times": {
+            "user": round(cpu_times.user, 1),
+            "system": round(cpu_times.system, 1),
+            "idle": round(cpu_times.idle, 1),
+            "iowait": round(cpu_times.iowait, 1) if hasattr(cpu_times, 'iowait') else None
+        },
+        "ctx_switches": cpu_stats.ctx_switches,
+        "interrupts": cpu_stats.interrupts,
+    }
+    
+    # Load averages (Linux)
+    try:
+        la = os.getloadavg()
+        data["cpu"]["load_avg"] = {"1m": round(la[0], 2), "5m": round(la[1], 2), "15m": round(la[2], 2)}
+    except Exception:
+        data["cpu"]["load_avg"] = None
+    
+    # ===== MEMORY =====
+    mem = psutil.virtual_memory()
+    swap = psutil.swap_memory()
+    
+    data["memory"] = {
+        "total": mem.total,
+        "used": mem.used,
+        "free": mem.free,
+        "available": mem.available,
+        "percent": round(mem.percent, 1),
+        "cached": mem.cached if hasattr(mem, 'cached') else None,
+        "buffers": mem.buffers if hasattr(mem, 'buffers') else None,
+        "swap_total": swap.total,
+        "swap_used": swap.used,
+        "swap_free": swap.free,
+        "swap_percent": round(swap.percent or 0, 1),
+        "swap_in": swap.sin if hasattr(swap, 'sin') else None,
+        "swap_out": swap.sout if hasattr(swap, 'sout') else None
+    }
+    
+    # ===== DISK =====
+    disk_root = psutil.disk_usage('/')
+    disk_io = psutil.disk_io_counters()
+    partitions = psutil.disk_partitions(all=False)
+    
+    data["disk"] = {
+        "root": {
+            "total": disk_root.total,
+            "used": disk_root.used,
+            "free": disk_root.free,
+            "percent": round(disk_root.percent, 1)
+        },
+        "io": {
+            "read_bytes": disk_io.read_bytes if disk_io else None,
+            "write_bytes": disk_io.write_bytes if disk_io else None,
+            "read_count": disk_io.read_count if disk_io else None,
+            "write_count": disk_io.write_count if disk_io else None,
+            "busy_time": disk_io.busy_time if disk_io and hasattr(disk_io, 'busy_time') else None
+        },
+        "partitions": [
+            {
+                "device": p.device,
+                "mountpoint": p.mountpoint,
+                "fstype": p.fstype,
+                "opts": p.opts
+            }
+            for p in partitions
+        ],
+        "mounts": []
+    }
+    
+    # USB mounts
+    try:
+        usb_root = Path("/media/usb")
+        if usb_root.exists():
+            for p in usb_root.iterdir():
+                if p.is_dir():
+                    try:
+                        du = psutil.disk_usage(str(p))
+                        data["disk"]["mounts"].append({
+                            "path": str(p),
+                            "total": du.total,
+                            "used": du.used,
+                            "free": du.free,
+                            "percent": round(du.percent, 1)
+                        })
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+    
+    # ===== NETWORK =====
+    net_io = psutil.net_io_counters(pernic=True)
+    net_connections = len(psutil.net_connections(kind='inet'))
+    
+    data["network"] = {
+        "interfaces": [],
+        "active_connections": net_connections
+    }
+    
+    for iface, stats in net_io.items():
+        iface_data = {
+            "name": iface,
+            "bytes_sent": stats.bytes_sent,
+            "bytes_recv": stats.bytes_recv,
+            "packets_sent": stats.packets_sent,
+            "packets_recv": stats.packets_recv,
+            "errin": stats.errin,
+            "errout": stats.errout,
+            "dropin": stats.dropin,
+            "dropout": stats.dropout
+        }
+        
+        # Try to get IP addresses
+        try:
+            addrs = psutil.net_if_addrs().get(iface, [])
+            iface_data["addresses"] = [
+                {"family": str(addr.family), "address": addr.address}
+                for addr in addrs
+            ]
+        except Exception:
+            iface_data["addresses"] = []
+        
+        data["network"]["interfaces"].append(iface_data)
+    
+    # Wi-Fi info (if available)
+    data["network"]["wifi"] = None
+    try:
+        iwconfig = subprocess.run(
+            ["iwconfig"], capture_output=True, text=True, timeout=2
+        )
+        if iwconfig.returncode == 0 and "ESSID" in iwconfig.stdout:
+            # Parse basic Wi-Fi info (simplified)
+            data["network"]["wifi"] = {"raw": iwconfig.stdout[:500]}
+    except Exception:
+        pass
+    
+    # ===== PROCESSES =====
+    processes = []
+    zombie_count = 0
+    
+    for proc in psutil.process_iter(['pid', 'name', 'username', 'cpu_percent', 'memory_percent', 'status']):
+        try:
+            pinfo = proc.info
+            if pinfo['status'] == psutil.STATUS_ZOMBIE:
+                zombie_count += 1
+            processes.append({
+                "pid": pinfo['pid'],
+                "name": pinfo['name'],
+                "user": pinfo['username'],
+                "cpu": round(pinfo['cpu_percent'] or 0, 1),
+                "memory": round(pinfo['memory_percent'] or 0, 1),
+                "status": pinfo['status']
+            })
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            pass
+    
+    # Sort by CPU for top consumers
+    processes.sort(key=lambda x: x['cpu'], reverse=True)
+    top_cpu = processes[:5]
+    
+    # Sort by memory for top consumers
+    processes.sort(key=lambda x: x['memory'], reverse=True)
+    top_mem = processes[:5]
+    
+    data["processes"] = {
+        "total": len(processes),
+        "zombie_count": zombie_count,
+        "top_cpu": top_cpu,
+        "top_memory": top_mem,
+        "all": processes[:100]  # Limit to 100 for response size
+    }
+    
+    # ===== HARDWARE (Raspberry Pi specific) =====
+    data["hardware"] = {}
+    
+    # Temperature
+    temp = None
+    try:
+        temp_result = subprocess.run(
+            ["vcgencmd", "measure_temp"], capture_output=True, text=True, timeout=2
+        )
+        if temp_result.returncode == 0:
+            temp_str = temp_result.stdout.strip()
+            temp = float(temp_str.split("=")[1].replace("'C", ""))
+    except:
+        try:
+            if Path("/sys/class/thermal/thermal_zone0/temp").exists():
+                temp_raw = Path("/sys/class/thermal/thermal_zone0/temp").read_text().strip()
+                temp = float(temp_raw) / 1000.0
+        except:
+            pass
+    
+    data["hardware"]["temperature"] = round(temp, 1) if temp else None
+    
+    # GPU temperature (if available)
+    try:
+        gpu_temp_result = subprocess.run(
+            ["vcgencmd", "measure_temp"], capture_output=True, text=True, timeout=2
+        )
+        # Note: Raspberry Pi usually reports same for CPU/GPU
+        data["hardware"]["gpu_temperature"] = data["hardware"]["temperature"]
+    except:
+        data["hardware"]["gpu_temperature"] = None
+    
+    # Throttling status
+    throttled = None
+    try:
+        th = subprocess.run(["vcgencmd", "get_throttled"], capture_output=True, text=True, timeout=2)
+        if th.returncode == 0 and th.stdout:
+            val_hex = th.stdout.strip().split("=")[-1]
+            val = int(val_hex, 16)
+            throttled = {
+                "under_voltage": bool(val & (1 << 0)),
+                "freq_capped": bool(val & (1 << 1)),
+                "throttled": bool(val & (1 << 2)),
+                "temp_limit": bool(val & (1 << 3)),
+                "under_voltage_has_occurred": bool(val & (1 << 16)),
+                "freq_capped_has_occurred": bool(val & (1 << 17)),
+                "throttled_has_occurred": bool(val & (1 << 18)),
+                "temp_limit_has_occurred": bool(val & (1 << 19)),
+            }
+    except Exception:
+        throttled = None
+    
+    data["hardware"]["throttled"] = throttled
+    
+    # Model and SoC info
+    try:
+        model_file = Path("/proc/device-tree/model")
+        data["hardware"]["model"] = model_file.read_text().strip().replace('\x00', '') if model_file.exists() else None
+    except:
+        data["hardware"]["model"] = None
+    
+    try:
+        serial_file = Path("/proc/cpuinfo")
+        if serial_file.exists():
+            cpuinfo = serial_file.read_text()
+            for line in cpuinfo.split('\n'):
+                if 'Serial' in line:
+                    data["hardware"]["serial"] = line.split(':')[-1].strip()
+                if 'Revision' in line:
+                    data["hardware"]["revision"] = line.split(':')[-1].strip()
+    except:
+        pass
+    
+    # ===== SYSTEM =====
+    boot_time = psutil.boot_time()
+    uptime_seconds = int(time.time() - boot_time)
+    
+    data["system"] = {
+        "uptime_seconds": uptime_seconds,
+        "boot_time": int(boot_time),
+        "platform": platform.system(),
+        "platform_release": platform.release(),
+        "platform_version": platform.version(),
+        "architecture": platform.machine(),
+        "hostname": platform.node(),
+        "logged_in_users": [u.name for u in psutil.users()]
+    }
+    
+    # USB devices
+    data["system"]["usb_devices"] = []
+    try:
+        lsusb = subprocess.run(["lsusb"], capture_output=True, text=True, timeout=2)
+        if lsusb.returncode == 0:
+            data["system"]["usb_devices"] = lsusb.stdout.strip().split('\n')[:20]
+    except:
+        pass
+    
+    return data
+
+
 @app.get("/api/system/info")
 async def get_system_info(authorization: str = None):
-    """Get system information."""
+    """Get comprehensive system information."""
     verify_auth(authorization)
     
     try:
-        # CPU info
-        cpu_percent = psutil.cpu_percent(interval=1)
-        cpu_count = psutil.cpu_count()
-        cpu_freq = psutil.cpu_freq()
-        # Load averages (Linux)
-        load_avg = None
-        try:
-            import os
-            la = os.getloadavg()
-            load_avg = {"1m": round(la[0], 2), "5m": round(la[1], 2), "15m": round(la[2], 2)}
-        except Exception:
-            load_avg = None
+        data = collect_system_metrics()
         
-        # Memory info
-        mem = psutil.virtual_memory()
-        swap = psutil.swap_memory()
+        # Store in history buffer for trends (simplified for graph)
+        timestamp = time.time()
+        with metrics_lock:
+            metrics_history.append({
+                "timestamp": timestamp,
+                "cpu_percent": data["cpu"]["percent_total"],
+                "memory_percent": data["memory"]["percent"],
+                "temperature": data["hardware"]["temperature"]
+            })
         
-        # Disk info
-        disk = psutil.disk_usage('/')
-        # USB mounts summary
-        mounts = []
-        try:
-            usb_root = Path("/media/usb")
-            if usb_root.exists():
-                for p in usb_root.iterdir():
-                    if p.is_dir():
-                        try:
-                            du = psutil.disk_usage(str(p))
-                            mounts.append({
-                                "path": str(p),
-                                "percent": round(du.percent, 1),
-                                "total": du.total,
-                                "used": du.used
-                            })
-                        except Exception:
-                            mounts.append({"path": str(p), "percent": None, "total": None, "used": None})
-        except Exception:
-            mounts = []
-        
-        # Temperature (try multiple sources)
-        temp = None
-        try:
-            temp_result = subprocess.run(
-                ["vcgencmd", "measure_temp"],
-                capture_output=True,
-                text=True,
-                timeout=2
-            )
-            if temp_result.returncode == 0:
-                temp_str = temp_result.stdout.strip()
-                temp = float(temp_str.split("=")[1].replace("'C", ""))
-        except:
-            try:
-                if Path("/sys/class/thermal/thermal_zone0/temp").exists():
-                    temp_raw = Path("/sys/class/thermal/thermal_zone0/temp").read_text().strip()
-                    temp = float(temp_raw) / 1000.0
-            except:
-                pass
-
-        # Throttling status (Raspberry Pi specific)
-        throttled = None
-        try:
-            th = subprocess.run(["vcgencmd", "get_throttled"], capture_output=True, text=True, timeout=2)
-            if th.returncode == 0 and th.stdout:
-                # Output like: throttled=0x50005
-                val_hex = th.stdout.strip().split("=")[-1]
-                val = int(val_hex, 16)
-                throttled = {
-                    "under_voltage": bool(val & (1 << 0)),
-                    "freq_capped": bool(val & (1 << 1)),
-                    "throttled": bool(val & (1 << 2)),
-                    "temp_limit": bool(val & (1 << 3)),
-                    "under_voltage_has_occurred": bool(val & (1 << 16)),
-                    "freq_capped_has_occurred": bool(val & (1 << 17)),
-                    "throttled_has_occurred": bool(val & (1 << 18)),
-                    "temp_limit_has_occurred": bool(val & (1 << 19)),
-                }
-        except Exception:
-            throttled = None
-        
-        # System info
-        import platform
-        try:
-            model_file = Path("/proc/device-tree/model")
-            model = model_file.read_text().strip().replace('\x00', '') if model_file.exists() else platform.machine()
-        except:
-            model = platform.machine()
-        
-        # Uptime
-        boot_time = psutil.boot_time()
-        import time
-        uptime_seconds = int(time.time() - boot_time)
-        
-        return {
-            "cpu": {
-                "percent": round(cpu_percent, 1),
-                "count": cpu_count,
-                "freq": round(cpu_freq.current, 0) if cpu_freq else None,
-                "load_avg": load_avg
-            },
-            "memory": {
-                "total": mem.total,
-                "used": mem.used,
-                "percent": round(mem.percent, 1),
-                "swap_total": swap.total,
-                "swap_used": swap.used,
-                "swap_percent": round(swap.percent or 0, 1)
-            },
-            "disk": {
-                "total": disk.total,
-                "used": disk.used,
-                "percent": round(disk.percent, 1),
-                "mounts": mounts
-            },
-            "temperature": round(temp, 1) if temp else None,
-            "throttled": throttled,
-            "model": model,
-            "uptime_seconds": uptime_seconds,
-            "platform": platform.system()
-        }
+        return data
     except Exception as e:
         logger.error(f"Failed to get system info: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/system/history")
+async def get_system_history(authorization: str = None):
+    """Get 30-minute trend history for CPU, Memory, Temperature."""
+    verify_auth(authorization)
+    
+    with metrics_lock:
+        history = list(metrics_history)
+    
+    return {
+        "timestamps": [h["timestamp"] for h in history],
+        "cpu_percent": [h["cpu_percent"] for h in history],
+        "memory_percent": [h["memory_percent"] for h in history],
+        "temperature": [h["temperature"] if h["temperature"] else 0 for h in history]
+    }
 
 
 # Task Manager APIs
