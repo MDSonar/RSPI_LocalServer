@@ -43,15 +43,24 @@ mkdir -p "$LOG_PATH"
 mkdir -p "/media/usb"
 chmod 755 "/media/usb"
 
-# Setup USB auto-mount rules
+# Setup USB auto-mount rules (handles labeled and unlabeled drives)
 echo "🔌 Configuring USB auto-mount..."
 cat > /etc/udev/rules.d/99-automount.rules << UDEV_EOF
 # Auto-mount USB storage with rspi ownership
-ACTION=="add", SUBSYSTEMS=="usb", KERNEL=="sd*[0-9]", ENV{ID_FS_USAGE}=="filesystem", \
+ACTION=="add", SUBSYSTEM=="block", KERNEL=="sd*[0-9]", ENV{ID_FS_TYPE}!="", \
     RUN+="/bin/mkdir -p /media/usb/%E{ID_FS_LABEL_ENC}", \
+    RUN+="/bin/chown ${RSPI_UID}:${RSPI_GID} /media/usb/%E{ID_FS_LABEL_ENC}", \
     RUN+="/bin/mount -o uid=${RSPI_UID},gid=${RSPI_GID},umask=022 /dev/%k /media/usb/%E{ID_FS_LABEL_ENC}"
-ACTION=="remove", SUBSYSTEMS=="usb", KERNEL=="sd*[0-9]", ENV{ID_FS_USAGE}=="filesystem", \
-    RUN+="/bin/umount /media/usb/%E{ID_FS_LABEL_ENC}"
+
+# Fallback for devices without label
+ACTION=="add", SUBSYSTEM=="block", KERNEL=="sd*[0-9]", ENV{ID_FS_TYPE}!="", ENV{ID_FS_LABEL_ENC}=="", \
+    RUN+="/bin/mkdir -p /media/usb/%k", \
+    RUN+="/bin/chown ${RSPI_UID}:${RSPI_GID} /media/usb/%k", \
+    RUN+="/bin/mount -o uid=${RSPI_UID},gid=${RSPI_GID},umask=022 /dev/%k /media/usb/%k"
+
+# Unmount on removal
+ACTION=="remove", SUBSYSTEM=="block", KERNEL=="sd*[0-9]", \
+    RUN+="/bin/umount -l /dev/%k"
 UDEV_EOF
 
 # Reload udev rules
