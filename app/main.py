@@ -170,6 +170,42 @@ async def download(path: str, authorization: str = None):
     )
 
 
+@app.post("/api/eject")
+async def eject(path: str, authorization: str = None):
+    """Eject/unmount a USB drive."""
+    verify_auth(authorization)
+    
+    import subprocess
+    from pathlib import Path
+    
+    # Get the full mount path
+    base_path = Path(file_manager.validator.base_path)
+    target_path = (base_path / path).resolve()
+    
+    # Verify it's within base_path
+    try:
+        target_path.relative_to(base_path)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid path")
+    
+    # Check if it's a mount point
+    result = subprocess.run(
+        ["mountpoint", "-q", str(target_path)],
+        capture_output=True
+    )
+    
+    if result.returncode != 0:
+        raise HTTPException(status_code=400, detail="Not a mount point")
+    
+    # Unmount via the helper script
+    subprocess.run(
+        ["/usr/local/bin/usb-mount.sh", "remove", str(target_path)],
+        capture_output=True
+    )
+    
+    return {"message": "Drive ejected successfully"}
+
+
 @app.get("/health")
 async def health():
     """Health check endpoint."""

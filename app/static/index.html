@@ -232,6 +232,15 @@
             background: #7f8c8d;
         }
 
+        .btn-warning {
+            background: #f39c12;
+            color: white;
+        }
+
+        .btn-warning:hover {
+            background: #e67e22;
+        }
+
         .alert {
             padding: 12px 20px;
             margin: 10px 20px;
@@ -455,6 +464,7 @@
                         </div>
                         <div class="file-actions">
                             ${item.is_dir ? `<button onclick="openFolder('${itemPath}'); event.stopPropagation();">📂 Open</button>` : `<button onclick="downloadFile('${itemPath}'); event.stopPropagation();">⬇️ Download</button>`}
+                            ${item.is_mountpoint ? `<button class="btn-warning" onclick="ejectDrive('${itemPath}'); event.stopPropagation();">⏏️ Eject</button>` : ''}
                             <button onclick="showRenameDialog('${itemPath}'); event.stopPropagation();">✏️ Rename</button>
                             <button class="btn-danger" onclick="showDeleteDialog('${itemPath}', '${escapeHtml(item.name)}'); event.stopPropagation();">🗑️ Delete</button>
                         </div>
@@ -574,6 +584,35 @@
             link.href = `/api/download?path=${encodeURIComponent(path)}`;
             link.download = filename;
             link.click();
+        }
+
+        async function ejectDrive(path) {
+            if (!confirm(`Eject drive "${path.split("/").pop()}"?\n\nMake sure no files are being accessed.`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch("/api/eject", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: `path=${encodeURIComponent(path)}`,
+                });
+
+                if (response.ok) {
+                    showAlert("Drive ejected successfully. You can now safely remove the USB drive.", "success");
+                    // Go to parent directory if we're inside the ejected drive
+                    if (currentPath === path || currentPath.startsWith(path + "/")) {
+                        openFolder("");
+                    } else {
+                        refreshList();
+                    }
+                } else {
+                    const error = await response.json();
+                    showAlert(error.detail || "Failed to eject drive", "error");
+                }
+            } catch (err) {
+                showAlert("Error ejecting drive: " + err.message, "error");
+            }
         }
 
         // Folder operations

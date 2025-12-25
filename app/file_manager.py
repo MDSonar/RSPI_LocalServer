@@ -100,6 +100,8 @@ class FileManager:
                     
                     if item.is_dir():
                         entry["type"] = "folder"
+                        # Check if this is a mount point
+                        entry["is_mountpoint"] = os.path.ismount(item)
                         folders.append(entry)
                     else:
                         entry["type"] = "file"

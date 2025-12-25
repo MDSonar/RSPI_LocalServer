@@ -69,9 +69,16 @@ if [ "$ACTION" = "add" ]; then
     mount -o uid=$RSPI_UID,gid=$RSPI_GID,umask=022 "$DEVNAME" "$MOUNT_POINT"
     logger "USB: Mounted $DEVNAME at $MOUNT_POINT"
 elif [ "$ACTION" = "remove" ]; then
-    # Unmount
-    umount -l "$DEVNAME" 2>/dev/null || true
-    logger "USB: Unmounted $DEVNAME"
+    # Unmount and remove empty directory
+    if mountpoint -q "$MOUNT_POINT" 2>/dev/null; then
+        umount -l "$MOUNT_POINT"
+        logger "USB: Unmounted $DEVNAME from $MOUNT_POINT"
+    fi
+    # Remove empty directory
+    if [ -d "$MOUNT_POINT" ] && [ -z "$(ls -A $MOUNT_POINT)" ]; then
+        rmdir "$MOUNT_POINT"
+        logger "USB: Removed empty mount point $MOUNT_POINT"
+    fi
 fi
 MOUNT_SCRIPT
 
