@@ -42,6 +42,9 @@ mkdir -p "$CONFIG_PATH"
 mkdir -p "$LOG_PATH"
 mkdir -p "/media/usb"
 chmod 755 "/media/usb"
+MAP_DIR="/run/usb-mount"
+rm -rf "$MAP_DIR"
+mkdir -p "$MAP_DIR"
 
 # Create USB auto-mount helper script
 echo "🔌 Configuring USB auto-mount..."
@@ -50,6 +53,11 @@ cat > /usr/local/bin/usb-mount.sh << 'MOUNT_SCRIPT'
 # USB auto-mount helper script
 ACTION=$1
 DEVNAME=$2
+
+MAP_DIR="/run/usb-mount"
+
+# Ensure map dir exists
+mkdir -p "$MAP_DIR"
 
 RSPI_UID=$(id -u rspi)
 RSPI_GID=$(id -g rspi)
@@ -66,16 +74,24 @@ if [ "$ACTION" = "add" ]; then
     # Create mount point and mount
     mkdir -p "$MOUNT_POINT"
     chown $RSPI_UID:$RSPI_GID "$MOUNT_POINT"
+    echo "$MOUNT_POINT" > "$MAP_DIR/$(basename $DEVNAME)"
     if mount -o uid=$RSPI_UID,gid=$RSPI_GID,umask=022 "$DEVNAME" "$MOUNT_POINT"; then
         logger "USB: Mounted $DEVNAME at $MOUNT_POINT"
     else
         logger "USB: Failed to mount $DEVNAME at $MOUNT_POINT"
     fi
 elif [ "$ACTION" = "remove" ]; then
-    # Determine the actual mount point
-    if mountpoint -q "$DEVNAME" 2>/dev/null; then
+    # Determine the actual mount point (prefer stored mapping)
+    MP_FILE="$MAP_DIR/$(basename $DEVNAME)"
+    if [ -f "$MP_FILE" ]; then
+        MOUNT_POINT=$(cat "$MP_FILE")
+    fi
+    # If caller passed a mount path directly
+    if [ -z "$MOUNT_POINT" ] && [ -d "$DEVNAME" ]; then
         MOUNT_POINT="$DEVNAME"
-    else
+    fi
+    # Fallback: ask kernel
+    if [ -z "$MOUNT_POINT" ]; then
         MP=$(findmnt -n -o TARGET "$DEVNAME" 2>/dev/null)
         if [ -n "$MP" ]; then
             MOUNT_POINT="$MP"
@@ -98,6 +114,9 @@ elif [ "$ACTION" = "remove" ]; then
             logger "USB: Removed empty mount point $MOUNT_POINT"
         fi
     fi
+
+    # Remove map file
+    [ -f "$MP_FILE" ] && rm -f "$MP_FILE"
 fi
 MOUNT_SCRIPT
 
@@ -121,6 +140,9 @@ cat > /etc/udev/rules.d/99-automount.rules << UDEV_EOF
 # Auto-mount USB storage devices via systemd
 ACTION=="add", SUBSYSTEM=="block", KERNEL=="sd*[0-9]", ENV{ID_FS_TYPE}!="", \
     TAG+="systemd", ENV{SYSTEMD_WANTS}+="usb-mount@%k.service"
+# Ensure removal also cleans up
+ACTION=="remove", SUBSYSTEM=="block", KERNEL=="sd*[0-9]", \
+    RUN+="/usr/local/bin/usb-mount.sh remove /dev/%k"
 UDEV_EOF
 
 # Reload systemd and udev
