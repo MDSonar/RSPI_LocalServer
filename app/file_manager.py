@@ -59,6 +59,19 @@ class FileManager:
         self.max_upload_mb = config.get("storage.max_upload_mb", 500)
         self.max_files = config.get("storage.max_files_per_dir", 5000)
         self.allowed_extensions = config.get("storage.allowed_extensions", [])
+
+    def _is_mountpoint(self, path: Path) -> bool:
+        if path.is_mount():
+            return True
+        try:
+            with open("/proc/mounts", "r") as mounts:
+                for line in mounts:
+                    parts = line.split()
+                    if len(parts) >= 2 and parts[1] == str(path):
+                        return True
+        except Exception:
+            pass
+        return False
     
     def list_directory(self, user_path: str = "") -> Optional[Dict]:
         """
@@ -78,6 +91,17 @@ class FileManager:
             return None
         
         try:
+            # Clean up stale empty device folders at root (e.g., leftover sda1 when unmounted)
+            if target == self.validator.base_path:
+                for stale in list(target.iterdir()):
+                    if stale.is_dir() and not self._is_mountpoint(stale):
+                        try:
+                            if not any(stale.iterdir()) and stale.name.startswith("sd"):
+                                stale.rmdir()
+                                continue
+                        except Exception:
+                            pass
+
             items = sorted(target.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower()))
             
             files = []
@@ -100,8 +124,7 @@ class FileManager:
                     
                     if item.is_dir():
                         entry["type"] = "folder"
-                        # Check if this is a mount point
-                        entry["is_mountpoint"] = os.path.ismount(item)
+                        entry["is_mountpoint"] = self._is_mountpoint(item)
                         folders.append(entry)
                     else:
                         entry["type"] = "file"

@@ -197,11 +197,16 @@ async def eject(path: str, authorization: str = None):
     if result.returncode != 0:
         raise HTTPException(status_code=400, detail="Not a mount point")
     
-    # Unmount via the helper script
-    subprocess.run(
+    # Unmount and cleanup via the helper script
+    result = subprocess.run(
         ["/usr/local/bin/usb-mount.sh", "remove", str(target_path)],
-        capture_output=True
+        capture_output=True,
+        text=True
     )
+    
+    if result.returncode != 0:
+        logger.error(f"Failed to eject {target_path}: {result.stderr}")
+        raise HTTPException(status_code=500, detail="Failed to eject drive")
     
     return {"message": "Drive ejected successfully"}
 
