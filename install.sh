@@ -24,7 +24,7 @@ fi
 # Update system packages
 echo "🔄 Updating system packages..."
 apt update
-apt install -y python3 python3-venv python3-pip
+apt install -y python3 python3-venv python3-pip ntfs-3g exfat-fuse
 
 # Create application user and group
 echo "👤 Creating application user..."
@@ -32,6 +32,8 @@ if ! id "$APP_USER" &>/dev/null; then
     groupadd -f "$APP_GROUP"
     useradd -r -g "$APP_GROUP" -d "$APP_HOME" -s /usr/sbin/nologin "$APP_USER" || true
 fi
+RSPI_UID=$(id -u "$APP_USER")
+RSPI_GID=$(id -g "$APP_USER")
 
 # Create directories
 echo "📁 Creating directories..."
@@ -43,12 +45,13 @@ chmod 755 "/media/usb"
 
 # Setup USB auto-mount rules
 echo "🔌 Configuring USB auto-mount..."
-cat > /etc/udev/rules.d/99-automount.rules << 'UDEV_EOF'
+cat > /etc/udev/rules.d/99-automount.rules << UDEV_EOF
+# Auto-mount USB storage with rspi ownership
 ACTION=="add", SUBSYSTEMS=="usb", KERNEL=="sd*[0-9]", ENV{ID_FS_USAGE}=="filesystem", \
-  RUN+="/bin/mkdir -p /media/usb/%E{ID_FS_LABEL_ENC}", \
-  RUN+="/bin/mount -o uid=1000,gid=1000 /dev/%k /media/usb/%E{ID_FS_LABEL_ENC}"
+    RUN+="/bin/mkdir -p /media/usb/%E{ID_FS_LABEL_ENC}", \
+    RUN+="/bin/mount -o uid=${RSPI_UID},gid=${RSPI_GID},umask=022 /dev/%k /media/usb/%E{ID_FS_LABEL_ENC}"
 ACTION=="remove", SUBSYSTEMS=="usb", KERNEL=="sd*[0-9]", ENV{ID_FS_USAGE}=="filesystem", \
-  RUN+="/bin/umount /media/usb/%E{ID_FS_LABEL_ENC}"
+    RUN+="/bin/umount /media/usb/%E{ID_FS_LABEL_ENC}"
 UDEV_EOF
 
 # Reload udev rules
