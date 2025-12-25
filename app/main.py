@@ -213,16 +213,17 @@ async def filemanager_app(authorization: str = None):
 async def systeminfo_app(authorization: str = None):
     """Serve the system info app."""
     verify_auth(authorization)
-    
+    # Prefer the compact dev fallback to ensure latest UI
+    ui_path = Path(__file__).parent / "static" / "systeminfo.html"
+    if ui_path.exists():
+        return ui_path.read_text()
+
+    # Otherwise serve installed app
     for category in ["core", "optional"]:
         ui_path = APPS_DIR / category / "systeminfo" / "systeminfo.html"
         if ui_path.exists():
             return ui_path.read_text()
-    
-    ui_path = Path(__file__).parent / "static" / "systeminfo.html"
-    if ui_path.exists():
-        return ui_path.read_text()
-    
+
     return "<h1>System Info</h1><p>App not found</p>"
 
 
