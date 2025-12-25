@@ -24,7 +24,7 @@ fi
 # Update system packages
 echo "🔄 Updating system packages..."
 apt update
-apt install -y python3 python3-venv python3-pip ntfs-3g exfat-fuse
+apt install -y python3 python3-venv python3-pip ntfs-3g exfat-fuse exfatprogs dosfstools
 
 # Create application user and group
 echo "👤 Creating application user..."
@@ -56,6 +56,7 @@ RSPI_GID=$(id -g rspi)
 
 # Get filesystem label or use device name
 FS_LABEL=$(blkid -s LABEL -o value "$DEVNAME" 2>/dev/null)
+FS_TYPE=$(blkid -s TYPE -o value "$DEVNAME" 2>/dev/null)
 if [ -z "$FS_LABEL" ]; then
     MOUNT_POINT="/media/usb/$(basename $DEVNAME)"
 else
@@ -70,11 +71,40 @@ if [ "$ACTION" = "add" ]; then
         logger "USB: $MOUNT_POINT already mounted"
         exit 0
     fi
-    if mount -o uid=$RSPI_UID,gid=$RSPI_GID,umask=022 "$DEVNAME" "$MOUNT_POINT"; then
+    # Choose mount command/options per FS type
+    MOUNT_OK=false
+    if [ "$FS_TYPE" = "ntfs" ] || [ "$FS_TYPE" = "fuseblk" ]; then
+        if command -v ntfs-3g >/dev/null 2>&1; then
+            ntfs-3g -o uid=$RSPI_UID,gid=$RSPI_GID,umask=022,big_writes "$DEVNAME" "$MOUNT_POINT" && MOUNT_OK=true
+        else
+            mount -t ntfs -o uid=$RSPI_UID,gid=$RSPI_GID,umask=022 "$DEVNAME" "$MOUNT_POINT" && MOUNT_OK=true
+        fi
+    elif [ "$FS_TYPE" = "vfat" ] || [ "$FS_TYPE" = "exfat" ]; then
+        mount -t "$FS_TYPE" -o uid=$RSPI_UID,gid=$RSPI_GID,umask=022 "$DEVNAME" "$MOUNT_POINT" && MOUNT_OK=true
+    elif [ -n "$FS_TYPE" ]; then
+        # ext*, xfs, btrfs, etc. (no uid/gid options)
+        mount -t "$FS_TYPE" "$DEVNAME" "$MOUNT_POINT" && MOUNT_OK=true
+    else
+        # Fallback
+        mount "$DEVNAME" "$MOUNT_POINT" && MOUNT_OK=true
+    fi
+    if $MOUNT_OK; then
         logger "USB: Mounted $DEVNAME at $MOUNT_POINT"
     else
-        logger "USB: Failed to mount $DEVNAME at $MOUNT_POINT"
-        rmdir "$MOUNT_POINT" 2>/dev/null || true
+        # Fallback: try read-only mount for visibility
+        if [ "$FS_TYPE" = "ntfs" ] || [ "$FS_TYPE" = "fuseblk" ]; then
+            if command -v ntfs-3g >/dev/null 2>&1; then
+                ntfs-3g -o ro,uid=$RSPI_UID,gid=$RSPI_GID,umask=022 "$DEVNAME" "$MOUNT_POINT" && MOUNT_OK=true
+            fi
+        elif [ "$FS_TYPE" = "vfat" ] || [ "$FS_TYPE" = "exfat" ]; then
+            mount -t "$FS_TYPE" -o ro,uid=$RSPI_UID,gid=$RSPI_GID,umask=022 "$DEVNAME" "$MOUNT_POINT" && MOUNT_OK=true
+        fi
+        if $MOUNT_OK; then
+            logger "USB: Mounted read-only $DEVNAME at $MOUNT_POINT"
+        else
+            logger "USB: Failed to mount $DEVNAME at $MOUNT_POINT"
+            rmdir "$MOUNT_POINT" 2>/dev/null || true
+        fi
     fi
 elif [ "$ACTION" = "remove" ]; then
     # Determine the actual mount point
@@ -112,11 +142,15 @@ chmod +x /usr/local/bin/usb-mount.sh
 cat > /etc/systemd/system/usb-mount@.service << 'SERVICE_EOF'
 [Unit]
 Description=Mount USB Drive %I
-After=local-fs.target
+After=local-fs.target dev-%i.device
+BindsTo=dev-%i.device
+Requires=dev-%i.device
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
+TimeoutStartSec=30
+TimeoutStopSec=30
 ExecStart=/usr/local/bin/usb-mount.sh add /dev/%i
 ExecStop=/usr/local/bin/usb-mount.sh remove /dev/%i
 SERVICE_EOF
@@ -126,9 +160,7 @@ cat > /etc/udev/rules.d/99-automount.rules << UDEV_EOF
 # Auto-mount USB storage devices via systemd
 ACTION=="add", SUBSYSTEM=="block", ENV{DEVTYPE}=="partition", KERNEL=="sd*[0-9]", ENV{ID_FS_TYPE}!="", \
     TAG+="systemd", ENV{SYSTEMD_WANTS}+="usb-mount@%k.service"
-# Ensure removal also cleans up
-ACTION=="remove", SUBSYSTEM=="block", ENV{DEVTYPE}=="partition", KERNEL=="sd*[0-9]", \
-    RUN+="/usr/local/bin/usb-mount.sh remove /dev/%k"
+# Removal will be handled by systemd ExecStop when the device disappears
 UDEV_EOF
 
 # Reload systemd and udev
