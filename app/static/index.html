@@ -110,8 +110,20 @@
             align-items: center;
             padding: 12px 20px;
             border-bottom: 1px solid #f0f0f0;
-            transition: background 0.2s;
+            transition: background 0.2s, opacity 0.3s ease-in-out;
             cursor: pointer;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-5px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .file-item:hover {
@@ -402,6 +414,8 @@
         let currentPath = "";
         let selectedItem = null;
         let autoRefreshInterval = null;
+        let lastData = null;
+        let isInitialLoad = true;
 
         // Initialize
         (async () => {
@@ -409,9 +423,9 @@
                 const config = await fetch("/api/config").then(r => r.json());
                 document.getElementById("appTitle").textContent = config.title;
                 
-                // Setup auto-refresh if configured
+                // Setup auto-refresh if configured (background refresh, no loading state)
                 if (config.refreshInterval && config.refreshInterval > 0) {
-                    autoRefreshInterval = setInterval(refreshList, config.refreshInterval);
+                    autoRefreshInterval = setInterval(() => refreshList(false), config.refreshInterval);
                 }
             } catch (e) {
                 console.error("Failed to load config:", e);
@@ -420,23 +434,34 @@
         })();
 
         // Refresh file list
-        async function refreshList() {
+        async function refreshList(showLoading = true) {
             const fileList = document.getElementById("fileList");
-            fileList.innerHTML = '<div class="loading">Loading...</div>';
+            
+            // Only show loading state on initial load or manual refresh
+            if (showLoading && isInitialLoad) {
+                fileList.innerHTML = '<div class="loading">Loading...</div>';
+            }
 
             try {
                 const response = await fetch(`/api/browse?path=${encodeURIComponent(currentPath)}`);
                 if (!response.ok) {
-                    showAlert("Failed to load directory", "error");
+                    if (showLoading) showAlert("Failed to load directory", "error");
                     return;
                 }
 
                 const data = await response.json();
-                renderFileList(data);
-                updateBreadcrumb(data);
+                
+                // Only update if data actually changed
+                if (!lastData || JSON.stringify(lastData) !== JSON.stringify(data)) {
+                    renderFileList(data);
+                    updateBreadcrumb(data);
+                    lastData = data;
+                }
+                
+                isInitialLoad = false;
             } catch (e) {
                 console.error("Error:", e);
-                showAlert("Error loading directory", "error");
+                if (showLoading) showAlert("Error loading directory", "error");
             }
         }
 
@@ -501,7 +526,9 @@
 
         function navigateTo(path) {
             currentPath = path;
-            refreshList();
+            lastData = null; // Force refresh on navigation
+            isInitialLoad = true;
+            refreshList(true);
         }
 
         // File operations
