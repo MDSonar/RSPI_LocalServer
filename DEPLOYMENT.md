@@ -4,11 +4,6 @@ Use this guide to deploy on your Raspberry Pi 4B.
 
 ## Pre-Deployment
 
-- [ ] Raspberry Pi 4B with 1GB+ RAM
-- [ ] Fresh Raspberry Pi OS Lite (Bullseye or later)
-- [ ] Network access (Ethernet or Wi-Fi)
-- [ ] USB drive(s) for file storage
-- [ ] SSH access to Pi or physical keyboard/monitor
 
 ## Step-by-Step Deployment
 
@@ -30,7 +25,6 @@ sudo apt install -y ntfs-3g exfat-fuse
 sudo apt install -y samba
 ```
 
-- [ ] SSH access to Raspberry Pi confirmed
 
 ### 2. Prepare USB Storage
 
@@ -58,7 +52,6 @@ sudo udevadm trigger
 mount | grep /media/usb
 ```
 
-- [ ] Auto-mount rule created and tested
 
 #### Option B: Manual Mount
 
@@ -76,7 +69,6 @@ sudo chown -R pi:pi /media/usb/mydrive
 # (get UUID with: sudo blkid /dev/sda1)
 ```
 
-- [ ] USB drive mounted and accessible
 
 ### 3. Install RSPI LocalServer
 
@@ -106,8 +98,6 @@ Monitor the installation output. You should see:
 📋 Logs: /var/log/rspi-localserver/
 ```
 
-- [ ] Installation script completed without errors
-- [ ] Service is running: `sudo systemctl status rspi-localserver`
 
 ### 4. Verify Installation
 
@@ -129,9 +119,6 @@ curl http://<pi-ip>:8080
 # Should return HTML (the web UI)
 ```
 
-- [ ] Service running
-- [ ] Port 8080 is open and listening
-- [ ] Can access UI from another device on the network
 
 ### 5. Access the Web UI
 
@@ -144,22 +131,10 @@ http://<your-pi-ip>:8080
 Example: `http://192.168.1.100:8080`
 
 You should see:
-- 🏠 Root directory of `/media/usb`
-- 📁 List of USB drives/folders
-- 📤 Upload buttons
-- ➕ New Folder button
-- 🔄 Refresh button
 
-- [ ] Web UI loads and displays files
 
 ### 6. Test Core Features
 
-- [ ] **Browse:** Click folders to navigate
-- [ ] **Upload:** Click "Upload File" and select a small test file
-- [ ] **Download:** Download the uploaded file to verify
-- [ ] **Create Folder:** Click "New Folder", enter a name, create it
-- [ ] **Rename:** Right-click or use Rename button on a test folder/file
-- [ ] **Delete:** Delete the test folder with confirmation
 
 ### 7. (Optional) Enable Basic Auth
 
@@ -185,7 +160,6 @@ sudo systemctl restart rspi-localserver
 
 Test by accessing the UI again. You should be prompted for username/password.
 
-- [ ] Basic auth enabled and working (if desired)
 
 ### 8. (Optional) Set Up Firewall
 
@@ -201,7 +175,6 @@ sudo ufw status
 # Should show 8080/tcp as ALLOW
 ```
 
-- [ ] Firewall configured (if applicable)
 
 ### 9. Monitor & Logs
 
@@ -217,15 +190,10 @@ ps aux | grep gunicorn
 # Look for the "RES" column (resident memory)
 ```
 
-- [ ] Logs viewable and no errors
-- [ ] RAM usage is reasonable (< 200 MB)
 
 ### 10. Configure Boot & Persistence
 
 The systemd service is already configured to:
-- Start automatically on boot: `sudo systemctl enable rspi-localserver`
-- Restart on failure
-- Run as unprivileged `rspi` user
 
 Test it:
 
@@ -237,7 +205,6 @@ sudo reboot
 sudo systemctl status rspi-localserver
 ```
 
-- [ ] Service starts automatically on boot
 
 ## Post-Deployment
 
@@ -268,10 +235,6 @@ sudo bash update.sh
 ```
 
 This will:
-- Create a dated backup
-- Update the code
-- Update dependencies
-- Restart the service
 
 ### Backup Important Files
 
@@ -281,6 +244,102 @@ sudo cp /etc/rspi-localserver/config.yaml ~/config.yaml.bak
 
 # Backup USB data regularly to another device
 # (Use rsync, scp, or manually copy to a laptop)
+```
+# RSPI LocalServer – Deployment Guide
+
+## Pre-Deployment Checklist
+
+- [ ] Raspberry Pi 4B with 1GB+ RAM
+- [ ] Fresh Raspberry Pi OS Lite (Bullseye or later)
+- [ ] Network access (Ethernet or Wi-Fi on the same LAN)
+- [ ] USB drive(s) for file storage (optional)
+
+## Three-Step Installation
+
+### Step 1: Clone the Project
+
+```bash
+cd ~
+git clone https://github.com/your-username/RSPI_LocalServer.git
+cd RSPI_LocalServer
+```
+
+### Step 2: Run the Installer
+
+```bash
+sudo bash install.sh
+```
+
+The installer will automatically handle everything:
+- ✅ Update system packages
+- ✅ Install Python 3, venv, and pip
+- ✅ Install filesystem drivers (NTFS/exFAT support)
+- ✅ Create `/media/usb` mount point
+- ✅ Configure auto-mounting for USB drives (udev rules)
+- ✅ Create `rspi` application user
+- ✅ Set up Python virtual environment
+- ✅ Install dependencies
+- ✅ Create systemd service
+- ✅ Start the service on port 8080
+
+**Expected output:**
+```
+✅ Installation successful!
+📍 Service: rspi-localserver
+📂 App directory: /opt/rspi-localserver
+⚙️  Config: /etc/rspi-localserver/config.yaml
+📋 Logs: /var/log/rspi-localserver/
+🌐 Access: http://<pi-ip>:8080
+```
+
+### Step 3: Access the Web UI
+
+Find your Pi's IP:
+```bash
+hostname -I
+```
+
+From any device on your network, open:
+```
+http://<your-pi-ip>:8080
+```
+
+**That's it!** USB drives are automatically mounted when plugged in.
+
+---
+
+## Common Tasks
+
+### Check Service Status
+
+```bash
+sudo systemctl status rspi-localserver
+```
+
+### View Logs
+
+```bash
+sudo journalctl -u rspi-localserver -f
+```
+
+### Restart Service
+
+```bash
+sudo systemctl restart rspi-localserver
+```
+
+### Update to New Version
+
+```bash
+cd ~/RSPI_LocalServer
+git pull
+sudo bash update.sh
+```
+
+### Uninstall
+
+```bash
+sudo bash uninstall.sh
 ```
 
 ## Troubleshooting

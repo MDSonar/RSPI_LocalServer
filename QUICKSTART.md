@@ -57,6 +57,18 @@ sudo chown -R pi:pi /media/usb/mydrive
 ```
 
 ## Enable Basic Auth (Optional)
+## What Happens Automatically
+
+The installer automatically sets up:
+- 🔄 System package updates
+- 🐍 Python 3, venv, and pip
+- 🔌 **USB auto-mount** (plug in a drive → it appears automatically)
+- 🐧 Systemd service (starts on boot)
+- ⚡ Web server on port 8080
+
+**No manual USB mounting needed!**
+
+## Enable Basic Auth (Optional)
 
 Edit `/etc/rspi-localserver/config.yaml`:
 
@@ -87,7 +99,7 @@ sudo ufw enable
 | Can't access UI | Check Pi IP: `hostname -I`; ensure on same network |
 | Service won't start | Check logs: `sudo journalctl -u rspi-localserver` |
 | Slow uploads | Check USB drive; reduce `max_upload_mb` in config |
-| Drive not appearing | Ensure mounted at `/media/usb/*`; check permissions |
+| Drive not appearing | Plug in USB drive; restart service if needed: `sudo systemctl restart rspi-localserver` |
 
 ## Next Steps
 

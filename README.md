@@ -41,82 +41,43 @@ A lightweight, LAN-only file manager web app for Raspberry Pi 4B (1GB RAM, Wi-Fi
 
 ## Installation
 
-### 1. Install RSPI LocalServer
-
-The `install.sh` script handles everything:
+### Quick Start (3 Commands)
 
 ```bash
-# Clone or download the project
-cd ~/RSPI_LocalServer
+# 1. Clone this project
+git clone https://github.com/your-username/RSPI_LocalServer.git
+cd RSPI_LocalServer
 
-# Run installer (as root) - this will:
-# - Update system packages
-# - Install Python 3, venv, and pip
-# - Create the rspi application user
-# - Set up virtual environment
-# - Install Python dependencies
-# - Create systemd service
-# - Start the service on port 8080
+# 2. Run the installer (handles everything automatically)
 sudo bash install.sh
-```
 
-**Optional:** To install filesystem drivers for NTFS/exFAT support before running install.sh:
-
-```bash
-sudo apt update && sudo apt upgrade -y
-sudo apt install -y ntfs-3g exfat-fuse
-```
-
-### 2. Mount USB Drives (Optional: Auto-Mount)
-
-To auto-mount USB drives when plugged in:
-
-```bash
-# Create mount point
-sudo mkdir -p /media/usb
-sudo chmod 755 /media/usb
-
-# Install auto-mount tool (systemd-mount handles this)
-# Already available in Raspberry Pi OS Lite
-
-# Create udev rule for auto-mounting
-sudo bash -c 'cat > /etc/udev/rules.d/99-automount.rules << '"'"'EOF'"'"'
-ACTION=="add", SUBSYSTEMS=="usb", KERNEL=="sd*[0-9]", ENV{ID_FS_USAGE}=="filesystem", \
-  RUN+="/bin/mkdir -p /media/usb/%E{ID_FS_LABEL_ENC}", \
-  RUN+="/bin/mount -o uid=1000,gid=1000 /dev/%k /media/usb/%E{ID_FS_LABEL_ENC}"
-ACTION=="remove", SUBSYSTEMS=="usb", KERNEL=="sd*[0-9]", ENV{ID_FS_USAGE}=="filesystem", \
-  RUN+="/bin/umount /media/usb/%E{ID_FS_LABEL_ENC}"
-EOF'
-
-# Reload udev rules
-sudo udevadm control --reload
-sudo udevadm trigger
-```
-
-Or manually mount:
-
-```bash
-# Identify drive
-lsblk
-
-# Mount (example: /dev/sda1)
-sudo mkdir -p /media/usb/mydrive
-sudo mount /dev/sda1 /media/usb/mydrive
-sudo chown -R pi:pi /media/usb/mydrive
-```
-
-### 3. Access the UI
-
-From any device on the same LAN:
-
-```
-http://<pi-ip>:8080
-```
-
-Find your Pi's IP:
-```bash
+# 3. Find your Pi's IP and access the web UI
 hostname -I
+# Open: http://<pi-ip>:8080
 ```
+
+That's it! The installer will:
+- ✅ Update system packages
+- ✅ Install Python 3 & dependencies
+- ✅ Set up auto-mounting for USB drives
+- ✅ Create systemd service (auto-starts on boot)
+- ✅ Start the web server on port 8080
+
+### Optional: Updating After Install
+
+```bash
+# When you pull new code from the repo:
+cd ~/RSPI_LocalServer
+git pull
+sudo bash update.sh
+```
+
+### System Requirements
+
+- **Hardware:** Raspberry Pi 4B (1 GB RAM minimum; 2+ GB recommended)
+- **OS:** Raspberry Pi OS Lite (Bullseye or later)
+- **Network:** Ethernet or Wi-Fi on the same LAN
+- **USB Drives:** Auto-detected and mounted at `/media/usb/<label>`
 
 ## Configuration
 

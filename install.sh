@@ -39,6 +39,21 @@ mkdir -p "$APP_HOME"
 mkdir -p "$CONFIG_PATH"
 mkdir -p "$LOG_PATH"
 mkdir -p "/media/usb"
+chmod 755 "/media/usb"
+
+# Setup USB auto-mount rules
+echo "🔌 Configuring USB auto-mount..."
+cat > /etc/udev/rules.d/99-automount.rules << 'UDEV_EOF'
+ACTION=="add", SUBSYSTEMS=="usb", KERNEL=="sd*[0-9]", ENV{ID_FS_USAGE}=="filesystem", \
+  RUN+="/bin/mkdir -p /media/usb/%E{ID_FS_LABEL_ENC}", \
+  RUN+="/bin/mount -o uid=1000,gid=1000 /dev/%k /media/usb/%E{ID_FS_LABEL_ENC}"
+ACTION=="remove", SUBSYSTEMS=="usb", KERNEL=="sd*[0-9]", ENV{ID_FS_USAGE}=="filesystem", \
+  RUN+="/bin/umount /media/usb/%E{ID_FS_LABEL_ENC}"
+UDEV_EOF
+
+# Reload udev rules
+udevadm control --reload
+udevadm trigger
 
 # Copy application files
 echo "📦 Copying application files..."
@@ -110,7 +125,6 @@ echo "🔐 Setting permissions..."
 chown -R "$APP_USER:$APP_GROUP" "$APP_HOME" "$CONFIG_PATH" "$LOG_PATH" "/media/usb"
 chmod 755 "$APP_HOME"
 chmod 755 "$LOG_PATH"
-chmod 755 "/media/usb"
 chmod 640 "$CONFIG_PATH/config.yaml"
 chmod 644 "$SYSTEMD_SERVICE"
 
