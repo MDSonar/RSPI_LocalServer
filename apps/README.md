@@ -12,10 +12,13 @@ apps/
 │       ├── manifest.json
 │       └── taskmanager.html
 └── optional/               # Optional apps (on-demand installation)
-    └── filemanager/
-        ├── manifest.json
-        ├── filemanager.html
-        └── file_manager.py
+   ├── filemanager/
+   │   ├── manifest.json
+   │   ├── filemanager.html
+   │   └── file_manager.py
+   └── videoplayer/
+      ├── manifest.json
+      └── videoplayer.html
 ```
 
 ## Installation Flow
@@ -23,7 +26,7 @@ apps/
 ### Initial Setup (git clone)
 When users run `git clone` and `sudo ./install.sh`:
 - Only **dashboard** and **core apps** (systeminfo, taskmanager) are copied to `/opt/rspi-localserver/`
-- File Manager and other optional apps remain in the GitHub repo
+- File Manager, Video Player, and other optional apps remain in the GitHub repo
 - Disk usage: ~5-10MB (vs 50-100MB+ with all apps)
 
 ### On-Demand Installation

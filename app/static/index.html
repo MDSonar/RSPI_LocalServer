@@ -486,6 +486,7 @@
                 const size = item.is_dir ? "" : formatSize(item.size);
                 const date = new Date(item.modified * 1000).toLocaleString();
 
+                const isVideo = isVideoFile(item.name);
                 return `
                     <div class="file-item" onclick="selectItem(this, '${itemPath}', ${item.is_dir})">
                         <div class="file-icon">${icon}</div>
@@ -494,7 +495,7 @@
                             <div class="file-meta">${date}${size ? " • " + size : ""}</div>
                         </div>
                         <div class="file-actions">
-                            ${item.is_dir ? `<button onclick="openFolder('${itemPath}'); event.stopPropagation();">📂 Open</button>` : `<button onclick="downloadFile('${itemPath}'); event.stopPropagation();">⬇️ Download</button>`}
+                            ${item.is_dir ? `<button onclick="openFolder('${itemPath}'); event.stopPropagation();">📂 Open</button>` : `${isVideo ? `<button onclick="playVideo('${itemPath}'); event.stopPropagation();">▶️ Play</button>` : ''}<button onclick="downloadFile('${itemPath}'); event.stopPropagation();">⬇️ Download</button>`}
                             ${item.is_mountpoint ? `<button class="btn-warning" onclick="ejectDrive('${itemPath}'); event.stopPropagation();">⏏️ Eject</button>` : ''}
                             ${!item.is_mountpoint ? `<button onclick="showRenameDialog('${itemPath}'); event.stopPropagation();">✏️ Rename</button>` : ''}
                             ${!item.is_mountpoint ? `<button class="btn-danger" onclick="showDeleteDialog('${itemPath}', '${escapeHtml(item.name)}'); event.stopPropagation();">🗑️ Delete</button>` : ''}
@@ -796,6 +797,16 @@
         function escapeHtml(text) {
             const map = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" };
             return text.replace(/[&<>"']/g, m => map[m]);
+        }
+
+        function isVideoFile(name) {
+            const ext = name.split(".").pop().toLowerCase();
+            return ["mp4", "mkv", "mov", "avi", "webm", "m4v"].includes(ext);
+        }
+
+        function playVideo(path) {
+            const url = `/apps/videoplayer?path=${encodeURIComponent(path)}`;
+            window.open(url, "_blank");
         }
 
         // Close modals on outside click
