@@ -82,21 +82,29 @@
                     <div class="label">CPU</div>
                     <div class="value" id="cpuPercent">--%</div>
                     <div class="sub" id="cpuMeta">-- cores · -- MHz</div>
+                    <div class="sub" id="cpuLoad">Load: -- / -- / --</div>
                 </div>
                 <div class="stat">
                     <div class="label">Memory</div>
                     <div class="value" id="memPercent">--%</div>
                     <div class="sub" id="memMeta">-- / --</div>
+                    <div class="sub" id="swapMeta">Swap: -- / -- (--) </div>
                 </div>
                 <div class="stat">
                     <div class="label">Disk</div>
                     <div class="value" id="diskPercent">--%</div>
                     <div class="sub" id="diskMeta">-- / --</div>
+                    <div class="sub" id="mountsMeta">Mounts: --</div>
                 </div>
                 <div class="stat">
                     <div class="label">Temperature</div>
                     <div class="value" id="tempValue">--</div>
                     <div class="sub" id="modelValue">--</div>
+                </div>
+                <div class="stat">
+                    <div class="label">Throttle Status</div>
+                    <div class="value" id="throttleNow">--</div>
+                    <div class="sub" id="throttleHist">History: --</div>
                 </div>
             </div>
             <div class="footer">
@@ -142,12 +150,39 @@
                 const d = await r.json();
                 document.getElementById('cpuPercent').textContent = `${d.cpu.percent}%`;
                 document.getElementById('cpuMeta').textContent = `${d.cpu.count} cores · ${d.cpu.freq || '--'} MHz`;
+                if (d.cpu.load_avg) {
+                    const la = d.cpu.load_avg;
+                    document.getElementById('cpuLoad').textContent = `Load: ${la['1m']} / ${la['5m']} / ${la['15m']}`;
+                }
                 document.getElementById('memPercent').textContent = `${d.memory.percent}%`;
                 document.getElementById('memMeta').textContent = `${formatBytes(d.memory.used)} / ${formatBytes(d.memory.total)}`;
+                document.getElementById('swapMeta').textContent = `Swap: ${formatBytes(d.memory.swap_used)} / ${formatBytes(d.memory.swap_total)} (${d.memory.swap_percent}% )`;
                 document.getElementById('diskPercent').textContent = `${d.disk.percent}%`;
                 document.getElementById('diskMeta').textContent = `${formatBytes(d.disk.used)} / ${formatBytes(d.disk.total)}`;
+                if (Array.isArray(d.disk.mounts)) {
+                    const count = d.disk.mounts.length;
+                    const summary = d.disk.mounts.slice(0,3).map(m => `${m.path.split('/').pop()}:${m.percent!=null?m.percent+'%':'N/A'}`).join(', ');
+                    document.getElementById('mountsMeta').textContent = `Mounts: ${count}${summary ? ' · '+summary : ''}`;
+                }
                 document.getElementById('tempValue').textContent = d.temperature != null ? `${d.temperature}°C` : 'N/A';
                 document.getElementById('modelValue').textContent = d.model || '--';
+                if (d.throttled) {
+                    const nowFlags = [];
+                    if (d.throttled.under_voltage) nowFlags.push('UV');
+                    if (d.throttled.freq_capped) nowFlags.push('FC');
+                    if (d.throttled.throttled) nowFlags.push('TH');
+                    if (d.throttled.temp_limit) nowFlags.push('TL');
+                    document.getElementById('throttleNow').textContent = nowFlags.length ? nowFlags.join(', ') : 'Normal';
+                    const histFlags = [];
+                    if (d.throttled.under_voltage_has_occurred) histFlags.push('UV');
+                    if (d.throttled.freq_capped_has_occurred) histFlags.push('FC');
+                    if (d.throttled.throttled_has_occurred) histFlags.push('TH');
+                    if (d.throttled.temp_limit_has_occurred) histFlags.push('TL');
+                    document.getElementById('throttleHist').textContent = histFlags.length ? histFlags.join(', ') : 'None';
+                } else {
+                    document.getElementById('throttleNow').textContent = 'Unknown';
+                    document.getElementById('throttleHist').textContent = 'Unknown';
+                }
                 document.getElementById('uptimeValue').textContent = `Uptime: ${formatUptime(d.uptime_seconds)}`;
                 document.getElementById('platformValue').textContent = `Platform: ${d.platform || '--'}`;
             } catch {}

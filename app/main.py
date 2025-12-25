@@ -324,12 +324,40 @@ async def get_system_info(authorization: str = None):
         cpu_percent = psutil.cpu_percent(interval=1)
         cpu_count = psutil.cpu_count()
         cpu_freq = psutil.cpu_freq()
+        # Load averages (Linux)
+        load_avg = None
+        try:
+            import os
+            la = os.getloadavg()
+            load_avg = {"1m": round(la[0], 2), "5m": round(la[1], 2), "15m": round(la[2], 2)}
+        except Exception:
+            load_avg = None
         
         # Memory info
         mem = psutil.virtual_memory()
+        swap = psutil.swap_memory()
         
         # Disk info
         disk = psutil.disk_usage('/')
+        # USB mounts summary
+        mounts = []
+        try:
+            usb_root = Path("/media/usb")
+            if usb_root.exists():
+                for p in usb_root.iterdir():
+                    if p.is_dir():
+                        try:
+                            du = psutil.disk_usage(str(p))
+                            mounts.append({
+                                "path": str(p),
+                                "percent": round(du.percent, 1),
+                                "total": du.total,
+                                "used": du.used
+                            })
+                        except Exception:
+                            mounts.append({"path": str(p), "percent": None, "total": None, "used": None})
+        except Exception:
+            mounts = []
         
         # Temperature (try multiple sources)
         temp = None
@@ -350,6 +378,27 @@ async def get_system_info(authorization: str = None):
                     temp = float(temp_raw) / 1000.0
             except:
                 pass
+
+        # Throttling status (Raspberry Pi specific)
+        throttled = None
+        try:
+            th = subprocess.run(["vcgencmd", "get_throttled"], capture_output=True, text=True, timeout=2)
+            if th.returncode == 0 and th.stdout:
+                # Output like: throttled=0x50005
+                val_hex = th.stdout.strip().split("=")[-1]
+                val = int(val_hex, 16)
+                throttled = {
+                    "under_voltage": bool(val & (1 << 0)),
+                    "freq_capped": bool(val & (1 << 1)),
+                    "throttled": bool(val & (1 << 2)),
+                    "temp_limit": bool(val & (1 << 3)),
+                    "under_voltage_has_occurred": bool(val & (1 << 16)),
+                    "freq_capped_has_occurred": bool(val & (1 << 17)),
+                    "throttled_has_occurred": bool(val & (1 << 18)),
+                    "temp_limit_has_occurred": bool(val & (1 << 19)),
+                }
+        except Exception:
+            throttled = None
         
         # System info
         import platform
@@ -368,19 +417,25 @@ async def get_system_info(authorization: str = None):
             "cpu": {
                 "percent": round(cpu_percent, 1),
                 "count": cpu_count,
-                "freq": round(cpu_freq.current, 0) if cpu_freq else None
+                "freq": round(cpu_freq.current, 0) if cpu_freq else None,
+                "load_avg": load_avg
             },
             "memory": {
                 "total": mem.total,
                 "used": mem.used,
-                "percent": round(mem.percent, 1)
+                "percent": round(mem.percent, 1),
+                "swap_total": swap.total,
+                "swap_used": swap.used,
+                "swap_percent": round(swap.percent or 0, 1)
             },
             "disk": {
                 "total": disk.total,
                 "used": disk.used,
-                "percent": round(disk.percent, 1)
+                "percent": round(disk.percent, 1),
+                "mounts": mounts
             },
             "temperature": round(temp, 1) if temp else None,
+            "throttled": throttled,
             "model": model,
             "uptime_seconds": uptime_seconds,
             "platform": platform.system()
