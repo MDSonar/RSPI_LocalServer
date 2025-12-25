@@ -43,24 +43,48 @@ mkdir -p "$LOG_PATH"
 mkdir -p "/media/usb"
 chmod 755 "/media/usb"
 
-# Setup USB auto-mount rules (handles labeled and unlabeled drives)
+# Create USB auto-mount helper script
 echo "🔌 Configuring USB auto-mount..."
+cat > /usr/local/bin/usb-mount.sh << 'MOUNT_SCRIPT'
+#!/bin/bash
+# USB auto-mount helper script
+ACTION=$1
+DEVNAME=$2
+
+RSPI_UID=$(id -u rspi)
+RSPI_GID=$(id -g rspi)
+
+# Get filesystem label or use device name
+FS_LABEL=$(blkid -s LABEL -o value "$DEVNAME" 2>/dev/null)
+if [ -z "$FS_LABEL" ]; then
+    MOUNT_POINT="/media/usb/$(basename $DEVNAME)"
+else
+    MOUNT_POINT="/media/usb/$FS_LABEL"
+fi
+
+if [ "$ACTION" = "add" ]; then
+    # Create mount point and mount
+    mkdir -p "$MOUNT_POINT"
+    chown $RSPI_UID:$RSPI_GID "$MOUNT_POINT"
+    mount -o uid=$RSPI_UID,gid=$RSPI_GID,umask=022 "$DEVNAME" "$MOUNT_POINT"
+    logger "USB: Mounted $DEVNAME at $MOUNT_POINT"
+elif [ "$ACTION" = "remove" ]; then
+    # Unmount
+    umount -l "$DEVNAME" 2>/dev/null || true
+    logger "USB: Unmounted $DEVNAME"
+fi
+MOUNT_SCRIPT
+
+chmod +x /usr/local/bin/usb-mount.sh
+
+# Setup udev rules to call the mount script
 cat > /etc/udev/rules.d/99-automount.rules << UDEV_EOF
-# Auto-mount USB storage with rspi ownership
+# Auto-mount USB storage devices
 ACTION=="add", SUBSYSTEM=="block", KERNEL=="sd*[0-9]", ENV{ID_FS_TYPE}!="", \
-    RUN+="/bin/mkdir -p /media/usb/%E{ID_FS_LABEL_ENC}", \
-    RUN+="/bin/chown ${RSPI_UID}:${RSPI_GID} /media/usb/%E{ID_FS_LABEL_ENC}", \
-    RUN+="/bin/mount -o uid=${RSPI_UID},gid=${RSPI_GID},umask=022 /dev/%k /media/usb/%E{ID_FS_LABEL_ENC}"
+    RUN+="/usr/local/bin/usb-mount.sh add /dev/%k"
 
-# Fallback for devices without label
-ACTION=="add", SUBSYSTEM=="block", KERNEL=="sd*[0-9]", ENV{ID_FS_TYPE}!="", ENV{ID_FS_LABEL_ENC}=="", \
-    RUN+="/bin/mkdir -p /media/usb/%k", \
-    RUN+="/bin/chown ${RSPI_UID}:${RSPI_GID} /media/usb/%k", \
-    RUN+="/bin/mount -o uid=${RSPI_UID},gid=${RSPI_GID},umask=022 /dev/%k /media/usb/%k"
-
-# Unmount on removal
 ACTION=="remove", SUBSYSTEM=="block", KERNEL=="sd*[0-9]", \
-    RUN+="/bin/umount -l /dev/%k"
+    RUN+="/usr/local/bin/usb-mount.sh remove /dev/%k"
 UDEV_EOF
 
 # Reload udev rules
