@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Manager - RSPI LocalServer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            height: 90vh;
+        }
+
+        header {
+            background: white;
+            border-radius: 15px;
+            padding: 20px 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 {
+            font-size: 28px;
+            color: #333;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .back-btn, .refresh-btn {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .back-btn:hover, .refresh-btn:hover {
+            opacity: 0.9;
+        }
+
+        .task-container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .task-header {
+            padding: 20px 30px;
+            border-bottom: 2px solid #f0f0f0;
+            display: grid;
+            grid-template-columns: 80px 2fr 1fr 100px 100px 100px 100px;
+            gap: 15px;
+            font-weight: 600;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .task-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0;
+        }
+
+        .task-item {
+            padding: 15px 30px;
+            border-bottom: 1px solid #f0f0f0;
+            display: grid;
+            grid-template-columns: 80px 2fr 1fr 100px 100px 100px 100px;
+            gap: 15px;
+            align-items: center;
+            transition: background 0.2s;
+        }
+
+        .task-item:hover {
+            background: #f9f9f9;
+        }
+
+        .task-item.high-cpu {
+            background: #fff3cd;
+        }
+
+        .task-pid {
+            color: #999;
+            font-size: 13px;
+        }
+
+        .task-name {
+            font-weight: 500;
+            color: #333;
+            word-break: break-word;
+        }
+
+        .task-user {
+            color: #666;
+            font-size: 13px;
+        }
+
+        .task-cpu, .task-memory {
+            font-weight: 600;
+            text-align: right;
+        }
+
+        .task-cpu.high {
+            color: #e74c3c;
+        }
+
+        .task-status {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .status-running {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-sleeping {
+            background: #cce5ff;
+            color: #004085;
+        }
+
+        .status-zombie {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .task-actions button {
+            padding: 6px 12px;
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .task-actions button:hover {
+            background: #c82333;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 60px;
+            color: #999;
+            font-size: 18px;
+        }
+
+        .alert {
+            padding: 12px 20px;
+            margin: 15px 30px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        @media (max-width: 1024px) {
+            .task-header, .task-item {
+                grid-template-columns: 60px 2fr 80px 80px;
+                font-size: 12px;
+            }
+
+            .task-user, .task-status {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>⚙️ Task Manager</h1>
+            <div class="header-actions">
+                <button class="refresh-btn" onclick="fetchTasks()">🔄 Refresh</button>
+                <a href="/" class="back-btn">🏠 Dashboard</a>
+            </div>
+        </header>
+
+        <div class="task-container">
+            <div class="task-header">
+                <div>PID</div>
+                <div>Process Name</div>
+                <div>User</div>
+                <div style="text-align: right;">CPU %</div>
+                <div style="text-align: right;">Memory %</div>
+                <div style="text-align: center;">Status</div>
+                <div style="text-align: center;">Action</div>
+            </div>
+            <div id="alertContainer"></div>
+            <div class="task-list" id="taskList">
+                <div class="loading">Loading processes...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let refreshInterval = null;
+
+        async function fetchTasks() {
+            try {
+                const response = await fetch("/api/tasks/list");
+                if (!response.ok) {
+                    throw new Error("Failed to fetch tasks");
+                }
+                const data = await response.json();
+                renderTasks(data.processes);
+            } catch (e) {
+                console.error("Error fetching tasks:", e);
+                document.getElementById("taskList").innerHTML = `
+                    <div class="loading">Error loading processes</div>
+                `;
+            }
+        }
+
+        function renderTasks(processes) {
+            const taskList = document.getElementById("taskList");
+            
+            if (processes.length === 0) {
+                taskList.innerHTML = '<div class="loading">No processes found</div>';
+                return;
+            }
+
+            taskList.innerHTML = processes.map(proc => {
+                const highCpu = proc.cpu > 50;
+                const statusClass = proc.status === 'running' ? 'status-running' : 
+                                  proc.status === 'sleeping' ? 'status-sleeping' : 
+                                  'status-zombie';
+
+                return `
+                    <div class="task-item ${highCpu ? 'high-cpu' : ''}">
+                        <div class="task-pid">${proc.pid}</div>
+                        <div class="task-name">${escapeHtml(proc.name)}</div>
+                        <div class="task-user">${escapeHtml(proc.user)}</div>
+                        <div class="task-cpu ${proc.cpu > 50 ? 'high' : ''}">${proc.cpu}%</div>
+                        <div class="task-memory">${proc.memory}%</div>
+                        <div>
+                            <span class="task-status ${statusClass}">${proc.status}</span>
+                        </div>
+                        <div class="task-actions">
+                            <button onclick="killProcess(${proc.pid}, '${escapeHtml(proc.name)}')">❌ Kill</button>
+                        </div>
+                    </div>
+                `;
+            }).join("");
+        }
+
+        async function killProcess(pid, name) {
+            if (!confirm(`Kill process "${name}" (PID ${pid})?\n\nThis action cannot be undone.`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch("/api/tasks/kill", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: `pid=${pid}`
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    showAlert(data.message, "success");
+                    fetchTasks(); // Refresh list
+                } else {
+                    const error = await response.json().catch(() => ({}));
+                    showAlert(error.detail || "Failed to kill process", "error");
+                }
+            } catch (e) {
+                console.error("Error killing process:", e);
+                showAlert("Error: " + e.message, "error");
+            }
+        }
+
+        function showAlert(message, type = "error") {
+            const container = document.getElementById("alertContainer");
+            const alert = document.createElement("div");
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            container.appendChild(alert);
+            setTimeout(() => alert.remove(), 5000);
+        }
+
+        function escapeHtml(text) {
+            const map = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+
+        // Initialize and auto-refresh
+        fetchTasks();
+        refreshInterval = setInterval(fetchTasks, 3000);
+    </script>
+</body>
+</html>

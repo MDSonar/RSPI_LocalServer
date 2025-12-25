@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RSPI LocalServer Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 36px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 16px;
+        }
+
+        .apps-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+
+        .app-card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+            transition: transform 0.3s, box-shadow 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .app-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.2);
+        }
+
+        .app-card.mandatory::before {
+            content: "CORE";
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .app-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+
+        .app-name {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .app-description {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+
+        .app-status {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .status-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-installed {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-not-installed {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .app-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: scale(1.02);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #666;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .loading-overlay.show {
+            display: flex;
+        }
+
+        .loading-content {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            text-align: center;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .alert {
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateY(-20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .apps-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            h1 {
+                font-size: 28px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚀 RSPI LocalServer</h1>
+            <p class="subtitle">Your Raspberry Pi Management Dashboard</p>
+        </header>
+
+        <div id="alertContainer"></div>
+
+        <div class="apps-grid" id="appsGrid">
+            <div class="app-card">
+                <div class="spinner"></div>
+                <p style="text-align: center; color: #999;">Loading apps...</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-content">
+            <div class="spinner"></div>
+            <p id="loadingMessage">Installing application...</p>
+        </div>
+    </div>
+
+    <script>
+        const apps = [
+            {
+                id: "filemanager",
+                name: "File Manager",
+                icon: "📁",
+                description: "Browse, upload, download, and manage files on your USB drives and storage devices.",
+                mandatory: false,
+                route: "/apps/filemanager"
+            },
+            {
+                id: "systeminfo",
+                name: "System Info",
+                icon: "💻",
+                description: "Monitor CPU, RAM, temperature, disk usage, and system information in real-time.",
+                mandatory: true,
+                route: "/apps/systeminfo"
+            },
+            {
+                id: "taskmanager",
+                name: "Task Manager",
+                icon: "⚙️",
+                description: "View and manage running processes, monitor resource usage, and control applications.",
+                mandatory: true,
+                route: "/apps/taskmanager"
+            }
+        ];
+
+        let installedApps = [];
+
+        async function loadAppStatus() {
+            try {
+                const response = await fetch("/api/apps/status");
+                if (response.ok) {
+                    const data = await response.json();
+                    installedApps = data.installed || [];
+                } else {
+                    // Default to mandatory apps installed
+                    installedApps = apps.filter(a => a.mandatory).map(a => a.id);
+                }
+            } catch (e) {
+                console.error("Failed to load app status:", e);
+                installedApps = apps.filter(a => a.mandatory).map(a => a.id);
+            }
+            renderApps();
+        }
+
+        function renderApps() {
+            const grid = document.getElementById("appsGrid");
+            grid.innerHTML = apps.map(app => {
+                const isInstalled = installedApps.includes(app.id);
+                
+                return `
+                    <div class="app-card ${app.mandatory ? 'mandatory' : ''}">
+                        <div class="app-icon">${app.icon}</div>
+                        <div class="app-name">${app.name}</div>
+                        <div class="app-description">${app.description}</div>
+                        <div class="app-status">
+                            <span class="status-badge ${isInstalled ? 'status-installed' : 'status-not-installed'}">
+                                ${isInstalled ? '✓ Installed' : '✗ Not Installed'}
+                            </span>
+                        </div>
+                        <div class="app-actions">
+                            ${isInstalled ? `
+                                <button class="btn-primary" onclick="launchApp('${app.route}')">
+                                    🚀 Launch
+                                </button>
+                                ${!app.mandatory ? `
+                                    <button class="btn-danger" onclick="uninstallApp('${app.id}')">
+                                        🗑️ Uninstall
+                                    </button>
+                                ` : ''}
+                            ` : `
+                                <button class="btn-success" onclick="installApp('${app.id}')">
+                                    📥 Install
+                                </button>
+                            `}
+                        </div>
+                    </div>
+                `;
+            }).join("");
+        }
+
+        function launchApp(route) {
+            window.location.href = route;
+        }
+
+        async function installApp(appId) {
+            const app = apps.find(a => a.id === appId);
+            showLoading(`Installing ${app.name}...`);
+
+            try {
+                const response = await fetch("/api/apps/install", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: `app_id=${encodeURIComponent(appId)}`
+                });
+
+                if (response.ok) {
+                    installedApps.push(appId);
+                    showAlert(`${app.name} installed successfully!`, "success");
+                    renderApps();
+                } else {
+                    const error = await response.json().catch(() => ({}));
+                    showAlert(error.detail || `Failed to install ${app.name}`, "error");
+                }
+            } catch (e) {
+                console.error("Install error:", e);
+                showAlert(`Error installing ${app.name}: ${e.message}`, "error");
+            } finally {
+                hideLoading();
+            }
+        }
+
+        async function uninstallApp(appId) {
+            const app = apps.find(a => a.id === appId);
+            if (!confirm(`Uninstall ${app.name}?\n\nThis will remove the application but keep your data.`)) {
+                return;
+            }
+
+            showLoading(`Uninstalling ${app.name}...`);
+
+            try {
+                const response = await fetch("/api/apps/uninstall", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: `app_id=${encodeURIComponent(appId)}`
+                });
+
+                if (response.ok) {
+                    installedApps = installedApps.filter(id => id !== appId);
+                    showAlert(`${app.name} uninstalled successfully!`, "success");
+                    renderApps();
+                } else {
+                    const error = await response.json().catch(() => ({}));
+                    showAlert(error.detail || `Failed to uninstall ${app.name}`, "error");
+                }
+            } catch (e) {
+                console.error("Uninstall error:", e);
+                showAlert(`Error uninstalling ${app.name}: ${e.message}`, "error");
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function showLoading(message) {
+            document.getElementById("loadingMessage").textContent = message;
+            document.getElementById("loadingOverlay").classList.add("show");
+        }
+
+        function hideLoading() {
+            document.getElementById("loadingOverlay").classList.remove("show");
+        }
+
+        function showAlert(message, type = "error") {
+            const container = document.getElementById("alertContainer");
+            const alert = document.createElement("div");
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            container.appendChild(alert);
+            setTimeout(() => alert.remove(), 5000);
+        }
+
+        // Initialize
+        loadAppStatus();
+    </script>
+</body>
+</html>
