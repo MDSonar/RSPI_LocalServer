@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Info</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #f5f6fa;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 900px; margin: 0 auto; }
+        header {
+            text-align: center;
+            margin-bottom: 16px;
+        }
+        h1 {
+            font-size: 24px;
+            color: #333;
+        }
+        .card {
+            background: #fff;
+            border: 1px solid #eee;
+            border-radius: 12px;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+            padding: 16px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 12px;
+            margin-top: 12px;
+        }
+        .stat {
+            padding: 12px;
+            background: #fafafa;
+            border-radius: 8px;
+            border: 1px solid #eee;
+        }
+        .label { color: #666; font-size: 12px; }
+        .value { color: #222; font-size: 16px; font-weight: 600; margin-top: 4px; }
+        .sub { color: #888; font-size: 12px; margin-top: 2px; }
+        .footer {
+            margin-top: 12px;
+            display: flex;
+            justify-content: space-between;
+            color: #555;
+            font-size: 12px;
+        }
+        .actions {
+            margin-top: 14px;
+            display: flex;
+            gap: 8px;
+        }
+        .btn {
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            background: #fff;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .btn-primary {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>System Info</h1>
+        </header>
+
+        <div class="card">
+            <div class="grid">
+                <div class="stat">
+                    <div class="label">CPU</div>
+                    <div class="value" id="cpuPercent">--%</div>
+                    <div class="sub" id="cpuMeta">-- cores · -- MHz</div>
+                </div>
+                <div class="stat">
+                    <div class="label">Memory</div>
+                    <div class="value" id="memPercent">--%</div>
+                    <div class="sub" id="memMeta">-- / --</div>
+                </div>
+                <div class="stat">
+                    <div class="label">Disk</div>
+                    <div class="value" id="diskPercent">--%</div>
+                    <div class="sub" id="diskMeta">-- / --</div>
+                </div>
+                <div class="stat">
+                    <div class="label">Temperature</div>
+                    <div class="value" id="tempValue">--</div>
+                    <div class="sub" id="modelValue">--</div>
+                </div>
+            </div>
+            <div class="footer">
+                <div id="uptimeValue">Uptime: --</div>
+                <div id="platformValue">Platform: --</div>
+            </div>
+            <div class="actions">
+                <button class="btn" onclick="location.href='/'">← Dashboard</button>
+                <button class="btn-primary" onclick="location.reload()">↻ Refresh</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function formatBytes(bytes) {
+            if (bytes == null) return "--";
+            const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+            let i = 0; let val = bytes;
+            while (val >= 1024 && i < units.length - 1) { val /= 1024; i++; }
+            return `${val.toFixed(1)} ${units[i]}`;
+        }
+        function formatUptime(seconds) {
+            if (!seconds && seconds !== 0) return "--";
+            const d = Math.floor(seconds / 86400);
+            const h = Math.floor((seconds % 86400) / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            if (d > 0) return `${d}d ${h}h`;
+            if (h > 0) return `${h}h ${m}m`;
+            return `${m}m`;
+        }
+        async function loadConfig() {
+            try {
+                const r = await fetch('/api/config');
+                if (!r.ok) return 2000;
+                const c = await r.json();
+                return c.refreshInterval || 2000;
+            } catch { return 2000; }
+        }
+        async function refresh() {
+            try {
+                const r = await fetch('/api/system/info');
+                if (!r.ok) return;
+                const d = await r.json();
+                document.getElementById('cpuPercent').textContent = `${d.cpu.percent}%`;
+                document.getElementById('cpuMeta').textContent = `${d.cpu.count} cores · ${d.cpu.freq || '--'} MHz`;
+                document.getElementById('memPercent').textContent = `${d.memory.percent}%`;
+                document.getElementById('memMeta').textContent = `${formatBytes(d.memory.used)} / ${formatBytes(d.memory.total)}`;
+                document.getElementById('diskPercent').textContent = `${d.disk.percent}%`;
+                document.getElementById('diskMeta').textContent = `${formatBytes(d.disk.used)} / ${formatBytes(d.disk.total)}`;
+                document.getElementById('tempValue').textContent = d.temperature != null ? `${d.temperature}°C` : 'N/A';
+                document.getElementById('modelValue').textContent = d.model || '--';
+                document.getElementById('uptimeValue').textContent = `Uptime: ${formatUptime(d.uptime_seconds)}`;
+                document.getElementById('platformValue').textContent = `Platform: ${d.platform || '--'}`;
+            } catch {}
+        }
+        (async function init(){
+            const interval = await loadConfig();
+            await refresh();
+            setInterval(refresh, interval);
+        })();
+    </script>
+</body>
+</html>

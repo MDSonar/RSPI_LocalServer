@@ -48,24 +48,24 @@
 
         .apps-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-            gap: 25px;
-            margin-bottom: 30px;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 16px;
+            margin-bottom: 20px;
         }
 
         .app-card {
             background: white;
-            border-radius: 15px;
-            padding: 30px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
-            transition: transform 0.3s, box-shadow 0.3s;
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+            transition: transform 0.2s, box-shadow 0.2s;
             position: relative;
             overflow: hidden;
         }
 
         .app-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.2);
+            transform: translateY(-3px);
+            box-shadow: 0 10px 26px rgba(0, 0, 0, 0.18);
         }
 
         .app-card.mandatory::before {
@@ -81,34 +81,22 @@
             font-weight: 600;
         }
 
-        .app-icon {
-            font-size: 48px;
-            margin-bottom: 15px;
-        }
-
         .app-name {
-            font-size: 24px;
+            font-size: 18px;
             font-weight: 600;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
             color: #333;
-        }
-
-        .app-description {
-            color: #666;
-            font-size: 14px;
-            margin-bottom: 20px;
-            line-height: 1.6;
         }
 
         .app-status {
             display: flex;
-            gap: 10px;
-            margin-bottom: 15px;
+            gap: 8px;
+            margin-bottom: 10px;
         }
 
         .status-badge {
-            padding: 6px 12px;
-            border-radius: 20px;
+            padding: 4px 10px;
+            border-radius: 16px;
             font-size: 12px;
             font-weight: 600;
         }
@@ -125,18 +113,18 @@
 
         .app-actions {
             display: flex;
-            gap: 10px;
+            gap: 8px;
         }
 
         button {
             flex: 1;
-            padding: 12px 20px;
+            padding: 10px 14px;
             border: none;
             border-radius: 8px;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s;
+            transition: all 0.2s;
         }
 
         .btn-primary {
@@ -200,19 +188,19 @@
 
         .loading-content {
             background: white;
-            padding: 40px;
-            border-radius: 15px;
+            padding: 28px;
+            border-radius: 12px;
             text-align: center;
         }
 
         .spinner {
-            width: 50px;
-            height: 50px;
-            border: 5px solid #f3f3f3;
-            border-top: 5px solid #667eea;
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
             border-radius: 50%;
             animation: spin 1s linear infinite;
-            margin: 0 auto 20px;
+            margin: 0 auto 14px;
         }
 
         @keyframes spin {
@@ -248,6 +236,26 @@
                 transform: translateY(0);
                 opacity: 1;
             }
+        }
+
+        .mini-summary {
+            margin: 8px 0 10px 0;
+            padding: 8px;
+            background: #fafafa;
+            border-radius: 8px;
+            border: 1px solid #eee;
+            font-size: 12px;
+            color: #444;
+        }
+
+        .mini-summary .row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+
+        .mini-summary .label {
+            color: #666;
         }
 
         @media (max-width: 768px) {
@@ -291,7 +299,7 @@
                 id: "filemanager",
                 name: "File Manager",
                 icon: "📁",
-                description: "Browse, upload, download, and manage files on your USB drives and storage devices.",
+                description: "",
                 mandatory: false,
                 route: "/apps/filemanager"
             },
@@ -299,7 +307,7 @@
                 id: "systeminfo",
                 name: "System Info",
                 icon: "💻",
-                description: "Monitor CPU, RAM, temperature, disk usage, and system information in real-time.",
+                description: "",
                 mandatory: true,
                 route: "/apps/systeminfo"
             },
@@ -307,7 +315,7 @@
                 id: "taskmanager",
                 name: "Task Manager",
                 icon: "⚙️",
-                description: "View and manage running processes, monitor resource usage, and control applications.",
+                description: "",
                 mandatory: true,
                 route: "/apps/taskmanager"
             }
@@ -339,14 +347,21 @@
                 
                 return `
                     <div class="app-card ${app.mandatory ? 'mandatory' : ''}">
-                        <div class="app-icon">${app.icon}</div>
                         <div class="app-name">${app.name}</div>
-                        <div class="app-description">${app.description}</div>
                         <div class="app-status">
                             <span class="status-badge ${isInstalled ? 'status-installed' : 'status-not-installed'}">
                                 ${isInstalled ? '✓ Installed' : '✗ Not Installed'}
                             </span>
                         </div>
+                        ${app.id === 'systeminfo' ? `
+                        <div class="mini-summary" id="systemSummary">
+                            <div class="row"><span class="label">CPU</span><span id="sumCpu">--%</span></div>
+                            <div class="row"><span class="label">Memory</span><span id="sumMem">--%</span></div>
+                            <div class="row"><span class="label">Disk</span><span id="sumDisk">--%</span></div>
+                            <div class="row"><span class="label">Temp</span><span id="sumTemp">--</span></div>
+                            <div class="row"><span class="label">Uptime</span><span id="sumUptime">--</span></div>
+                        </div>
+                        ` : ''}
                         <div class="app-actions">
                             ${isInstalled ? `
                                 <button class="btn-primary" onclick="launchApp('${app.route}')">
@@ -366,6 +381,17 @@
                     </div>
                 `;
             }).join("");
+
+            // After render, start system summary refresh if systeminfo tile exists
+            if (document.getElementById('systemSummary')) {
+                refreshSystemSummary();
+                if (!window.__sysSumInterval) {
+                    window.__sysSumInterval = setInterval(refreshSystemSummary, 3000);
+                }
+            } else if (window.__sysSumInterval) {
+                clearInterval(window.__sysSumInterval);
+                window.__sysSumInterval = null;
+            }
         }
 
         function launchApp(route) {
@@ -446,6 +472,45 @@
             alert.textContent = message;
             container.appendChild(alert);
             setTimeout(() => alert.remove(), 5000);
+        }
+
+        function formatBytes(bytes) {
+            if (bytes == null) return "--";
+            const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+            let i = 0;
+            let val = bytes;
+            while (val >= 1024 && i < units.length - 1) { val /= 1024; i++; }
+            return `${val.toFixed(1)} ${units[i]}`;
+        }
+
+        function formatUptime(seconds) {
+            if (!seconds && seconds !== 0) return "--";
+            const d = Math.floor(seconds / 86400);
+            const h = Math.floor((seconds % 86400) / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            if (d > 0) return `${d}d ${h}h`;
+            if (h > 0) return `${h}h ${m}m`;
+            return `${m}m`;
+        }
+
+        async function refreshSystemSummary() {
+            try {
+                const resp = await fetch('/api/system/info');
+                if (!resp.ok) return;
+                const data = await resp.json();
+                const cpu = document.getElementById('sumCpu');
+                const mem = document.getElementById('sumMem');
+                const disk = document.getElementById('sumDisk');
+                const temp = document.getElementById('sumTemp');
+                const up = document.getElementById('sumUptime');
+                if (cpu) cpu.textContent = `${data.cpu.percent}%`;
+                if (mem) mem.textContent = `${data.memory.percent}%`;
+                if (disk) disk.textContent = `${data.disk.percent}%`;
+                if (temp) temp.textContent = data.temperature != null ? `${data.temperature}°C` : 'N/A';
+                if (up) up.textContent = formatUptime(data.uptime_seconds);
+            } catch (e) {
+                // Silent fail to keep the UI clean
+            }
         }
 
         // Initialize
