@@ -401,12 +401,18 @@
     <script>
         let currentPath = "";
         let selectedItem = null;
+        let autoRefreshInterval = null;
 
         // Initialize
         (async () => {
             try {
                 const config = await fetch("/api/config").then(r => r.json());
                 document.getElementById("appTitle").textContent = config.title;
+                
+                // Setup auto-refresh if configured
+                if (config.refreshInterval && config.refreshInterval > 0) {
+                    autoRefreshInterval = setInterval(refreshList, config.refreshInterval);
+                }
             } catch (e) {
                 console.error("Failed to load config:", e);
             }
