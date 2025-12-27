@@ -373,12 +373,12 @@
         </header>
 
         <div class="toolbar">
-            <button onclick="triggerFileUpload()">📤 Upload File</button>
-            <button onclick="triggerFolderUpload()">📁 Upload Folder</button>
+            <button aria-label="Upload File" title="Upload File" onclick="triggerFileUpload()">📤</button>
+            <button aria-label="Upload Folder" title="Upload Folder" onclick="triggerFolderUpload()">📁</button>
             <div class="separator"></div>
-            <button onclick="showCreateFolderDialog()">➕ New Folder</button>
+            <button aria-label="New Folder" title="New Folder" onclick="showCreateFolderDialog()">➕</button>
             <div class="separator"></div>
-            <button onclick="refreshList()">🔄 Refresh</button>
+            <button aria-label="Refresh" title="Refresh" onclick="refreshList()">🔄</button>
             <input type="file" id="fileInput" onchange="handleFileUpload(event)">
             <input type="file" id="folderInput" webkitdirectory directory onchange="handleFolderUpload(event)">
         </div>
