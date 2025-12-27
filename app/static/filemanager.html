@@ -379,7 +379,6 @@
             <div class="separator"></div>
             <button onclick="showCreateFolderDialog()">➕ New Folder</button>
             <div class="separator"></div>
-            <button onclick="showAllVideos()" style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);">🎬 Browse All Videos</button>
             <button onclick="refreshList()">🔄 Refresh</button>
             <input type="file" id="fileInput" onchange="handleFileUpload(event)">
             <input type="file" id="folderInput" webkitdirectory directory onchange="handleFolderUpload(event)">
@@ -859,47 +858,6 @@
             video.pause();
             video.src = "";
             modal.classList.remove("show");
-        }
-
-        async function showAllVideos() {
-            try {
-                const response = await fetch("/api/video/find");
-                if (!response.ok) {
-                    showAlert("Failed to load videos", "error");
-                    return;
-                }
-                
-                const data = await response.json();
-                const videos = data.videos;
-                
-                if (videos.length === 0) {
-                    showAlert("No video files found on USB", "error");
-                    return;
-                }
-                
-                // Build video list HTML
-                const fileList = document.getElementById("fileList");
-                fileList.innerHTML = `
-                    <div style="padding:20px;color:#999;font-size:14px;">
-                        Found ${videos.length} video(s) on USB
-                    </div>
-                ` + videos.map(v => `
-                    <div class="file-item" onclick="selectItem(this, '${v.path}', false)">
-                        <div class="file-icon">🎬</div>
-                        <div class="file-info">
-                            <div class="file-name">${escapeHtml(v.name)}</div>
-                            <div class="file-meta">${v.folder} • ${formatSize(v.size)} • ${new Date(v.modified * 1000).toLocaleString()}</div>
-                        </div>
-                        <div class="file-actions">
-                            <button onclick="playVideoInline('${v.path}'); event.stopPropagation();">▶️ Play</button>
-                            <button onclick="downloadFile('${v.path}'); event.stopPropagation();">⬇️ Download</button>
-                        </div>
-                    </div>
-                `).join("");
-            } catch (e) {
-                console.error("Error fetching videos:", e);
-                showAlert("Error loading videos", "error");
-            }
         }
 
         // Close modals on outside click

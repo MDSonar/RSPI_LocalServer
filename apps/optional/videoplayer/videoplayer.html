@@ -94,20 +94,34 @@
                 <h1>Video Player <span class="badge">Optional App</span></h1>
                 <button onclick="location.href='/'" style="padding:8px 12px;font-size:13px;background:#667eea;color:white;border:none;border-radius:6px;cursor:pointer;">← Dashboard</button>
             </div>
-            <div class="meta" id="infoMeta">Play USB-hosted videos directly in your browser. Click ▶️ Play in File Manager or paste a relative path below.</div>
-            <div class="controls" id="manualInputSection">
+            <div class="meta" id="infoMeta">Discover and play all videos from your USB storage.</div>
+            
+            <!-- Manual Input Section -->
+            <div class="controls" id="manualInputSection" style="display:none;">
                 <input id="pathInput" type="text" placeholder="e.g. Movies/demo.mp4" />
                 <button onclick="loadVideo()">Play Video</button>
             </div>
+
+            <!-- Browse Videos Button -->
+            <div id="browseSection" style="margin-bottom:14px;">
+                <button onclick="loadAllVideos()" style="width:100%;padding:12px;background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:white;border:none;border-radius:8px;font-weight:600;cursor:pointer;font-size:14px;">
+                    🎬 Browse All Videos
+                </button>
+            </div>
+
+            <!-- Videos List -->
+            <div id="videosList" style="display:none;margin-bottom:14px;max-height:300px;overflow-y:auto;border:1px solid rgba(255,255,255,0.1);border-radius:8px;background:rgba(0,0,0,0.2);">
+            </div>
+
+            <!-- Video Player -->
             <div class="video-wrap">
                 <video id="player" controls preload="metadata"></video>
-                <div id="emptyState" class="empty">No video loaded. Enter a path and click Play.</div>
+                <div id="emptyState" class="empty">Click 🎬 Browse All Videos to get started.</div>
             </div>
             <div class="tips">
                 Tips:
-                <br>• Use paths relative to your USB root (same as File Manager).
                 <br>• Supports: mp4, mkv, mov, avi, webm, m4v.
-                <br>• Best way: Click ▶️ Play directly in File Manager for instant playback.
+                <br>• Browse all videos across your entire USB storage.
             </div>
         </div>
     </div>
@@ -117,6 +131,13 @@
             const params = new URLSearchParams(window.location.search);
             const p = params.get('path');
             return p ? decodeURIComponent(p) : '';
+        }
+
+        function formatBytes(bytes) {
+            if (bytes < 1024) return bytes + " B";
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+            if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+            return (bytes / (1024 * 1024 * 1024)).toFixed(1) + " GB";
         }
 
         function loadVideo(path) {
@@ -134,12 +155,61 @@
             document.getElementById('emptyState').style.display = 'none';
         }
 
+        async function loadAllVideos() {
+            try {
+                const response = await fetch('/api/video/find');
+                if (!response.ok) {
+                    alert('Failed to load videos');
+                    return;
+                }
+                
+                const data = await response.json();
+                const videos = data.videos;
+                
+                if (videos.length === 0) {
+                    alert('No video files found on USB');
+                    return;
+                }
+                
+                // Show videos list
+                const videosList = document.getElementById('videosList');
+                videosList.style.display = 'block';
+                document.getElementById('browseSection').style.display = 'none';
+                
+                // Build videos list HTML
+                videosList.innerHTML = videos.map((v, i) => `
+                    <div style="padding:10px;border-bottom:1px solid rgba(255,255,255,0.05);cursor:pointer;transition:background 0.2s;" 
+                         onclick="playVideoFromBrowse('${v.path}'); this.parentElement.style.display='none';"
+                         onmouseover="this.style.background='rgba(102,126,234,0.15)'" 
+                         onmouseout="this.style.background=''">
+                        <div style="color:#e0e0e8;font-weight:500;margin-bottom:4px;">
+                            ▶️ ${v.name}
+                        </div>
+                        <div style="color:#9090a0;font-size:12px;">
+                            📁 ${v.folder} • ${formatBytes(v.size)} • ${new Date(v.modified * 1000).toLocaleString()}
+                        </div>
+                    </div>
+                `).join('');
+            } catch (e) {
+                console.error('Error:', e);
+                alert('Error loading videos');
+            }
+        }
+
+        function playVideoFromBrowse(path) {
+            const videosList = document.getElementById('videosList');
+            videosList.style.display = 'none';
+            document.getElementById('browseSection').style.display = 'block';
+            document.getElementById('infoMeta').textContent = `Now playing: ${path.split('/').pop()}`;
+            loadVideo(path);
+        }
+
         (function init() {
             const qp = getQueryPath();
             if (qp) {
                 document.getElementById('pathInput').value = qp;
-                // Hide manual input section and show file name as title
-                document.getElementById('manualInputSection').style.display = 'none';
+                // Hide browse section and show file name as title
+                document.getElementById('browseSection').style.display = 'none';
                 const fileName = qp.split('/').pop();
                 document.getElementById('infoMeta').textContent = `Playing: ${fileName}`;
                 loadVideo(qp);
