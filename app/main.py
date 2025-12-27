@@ -4,6 +4,7 @@ import json
 import subprocess
 import psutil
 import mimetypes
+import os
 import urllib.request
 import urllib.error
 import shutil
@@ -269,6 +270,40 @@ async def videoplayer_app(authorization: str = None):
         return repo_ui.read_text()
 
     return "<h1>Video Player</h1><p>App not installed. Install from dashboard.</p>"
+
+
+@app.get("/api/video/find")
+async def find_videos(authorization: str = None):
+    """Find all video files recursively on USB storage."""
+    verify_auth(authorization)
+    
+    video_ext = {".mp4", ".mkv", ".mov", ".avi", ".webm", ".m4v"}
+    videos = []
+    
+    try:
+        base = file_manager.validator.base_path
+        for root, dirs, files in os.walk(base):
+            for file in files:
+                if Path(file).suffix.lower() in video_ext:
+                    full_path = Path(root) / file
+                    try:
+                        rel_path = full_path.relative_to(base)
+                        stat = full_path.stat()
+                        videos.append({
+                            "name": file,
+                            "path": str(rel_path),
+                            "size": stat.st_size,
+                            "modified": stat.st_mtime,
+                            "folder": str(Path(root).relative_to(base)) if Path(root) != base else "root"
+                        })
+                    except Exception as e:
+                        logger.warning(f"Could not stat video {full_path}: {e}")
+    except Exception as e:
+        logger.error(f"Error finding videos: {e}")
+    
+    # Sort by modified date descending (most recent first)
+    videos.sort(key=lambda v: v["modified"], reverse=True)
+    return {"videos": videos, "total": len(videos)}
 
 
 @app.get("/api/video/stream")

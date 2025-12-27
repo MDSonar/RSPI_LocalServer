@@ -90,7 +90,10 @@
 <body>
     <div class="container">
         <div class="card">
-            <h1>Video Player <span class="badge">Optional App</span></h1>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                <h1>Video Player <span class="badge">Optional App</span></h1>
+                <button onclick="location.href='/'" style="padding:8px 12px;font-size:13px;background:#667eea;color:white;border:none;border-radius:6px;cursor:pointer;">← Dashboard</button>
+            </div>
             <div class="meta" id="infoMeta">Play USB-hosted videos directly in your browser. Click ▶️ Play in File Manager or paste a relative path below.</div>
             <div class="controls" id="manualInputSection">
                 <input id="pathInput" type="text" placeholder="e.g. Movies/demo.mp4" />
