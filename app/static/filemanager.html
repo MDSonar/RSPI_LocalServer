@@ -79,10 +79,10 @@
                             <div class="file-meta">${date}${size ? " • " + size : ""}</div>
                         </div>
                         <div class="file-actions">
-                            ${item.is_dir ? `<button onclick=\"openFolder('${itemPath}'); event.stopPropagation();\">📂 Open</button>` : `${isVideo ? `<button onclick=\"playVideo('${itemPath}'); event.stopPropagation();\">▶️ Play</button>` : ''}<button onclick=\"downloadFile('${itemPath}'); event.stopPropagation();\">⬇️ Download</button>`}
-                            ${item.is_mountpoint ? `<button class=\"btn-warning\" onclick=\"ejectDrive('${itemPath}'); event.stopPropagation();\">⏏️ Eject</button>` : ''}
-                            ${!item.is_mountpoint ? `<button onclick=\"showRenameDialog('${itemPath}'); event.stopPropagation();\">✏️ Rename</button>` : ''}
-                            ${!item.is_mountpoint ? `<button class=\"btn-danger\" onclick=\"showDeleteDialog('${itemPath}', '${escapeHtml(item.name)}'); event.stopPropagation();\">🗑️ Delete</button>` : ''}
+                            ${item.is_dir ? `<button aria-label="Open" title="Open" onclick=\"openFolder('${itemPath}'); event.stopPropagation();\">📂</button>` : `${isVideo ? `<button aria-label="Play" title="Play" onclick=\"playVideo('${itemPath}'); event.stopPropagation();\">▶️</button>` : ''}<button aria-label="Download" title="Download" onclick=\"downloadFile('${itemPath}'); event.stopPropagation();\">⬇️</button>`}
+                            ${item.is_mountpoint ? `<button class=\"btn-warning\" aria-label="Eject" title="Eject" onclick=\"ejectDrive('${itemPath}'); event.stopPropagation();\">⏏️</button>` : ''}
+                            ${!item.is_mountpoint ? `<button aria-label="Rename" title="Rename" onclick=\"showRenameDialog('${itemPath}'); event.stopPropagation();\">✏️</button>` : ''}
+                            ${!item.is_mountpoint ? `<button class=\"btn-danger\" aria-label="Delete" title="Delete" onclick=\"showDeleteDialog('${itemPath}', '${escapeHtml(item.name)}'); event.stopPropagation();\">🗑️</button>` : ''}
                         </div>
                     </div>
                 `;
@@ -414,7 +414,7 @@
             </div>
             <div class="modal-footer">
                 <button class="btn-secondary" onclick="closeModal('renameModal')">Cancel</button>
-                <button onclick="renameItem()">Rename</button>
+                <button aria-label="Rename" title="Rename" onclick="renameItem()">✏️</button>
             </div>
         </div>
     </div>
@@ -429,7 +429,7 @@
             </div>
             <div class="modal-footer">
                 <button class="btn-secondary" onclick="closeModal('deleteModal')">Cancel</button>
-                <button class="btn-danger" onclick="confirmDelete()">Delete</button>
+                <button class="btn-danger" aria-label="Delete" title="Delete" onclick="confirmDelete()">🗑️</button>
             </div>
         </div>
     </div>
