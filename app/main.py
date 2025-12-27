@@ -12,7 +12,7 @@ import time
 from collections import deque
 from datetime import datetime
 from threading import Lock
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends, Header
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends, Header, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -307,7 +307,7 @@ async def find_videos(authorization: str = None):
 
 
 @app.get("/api/video/stream")
-async def stream_video(path: str, authorization: str = None, range: str = Header(default=None)):
+async def stream_video(path: str, request: Request, authorization: str = None, range: str = Header(default=None)):
     """Stream a video file with Range support so the browser can seek efficiently."""
     verify_auth(authorization)
 
@@ -319,7 +319,10 @@ async def stream_video(path: str, authorization: str = None, range: str = Header
     if safe_path.suffix.lower() not in allowed_ext:
         raise HTTPException(status_code=400, detail="Unsupported video type")
 
-    file_size = safe_path.stat().st_size
+    stat = safe_path.stat()
+    file_size = stat.st_size
+    mtime = int(stat.st_mtime)
+    etag = f'W/"{file_size}-{mtime}"'
     content_type = mimetypes.guess_type(safe_path.name)[0] or "application/octet-stream"
 
     start = 0
@@ -341,8 +344,11 @@ async def stream_video(path: str, authorization: str = None, range: str = Header
         end = max(start, min(end, file_size - 1))
         status_code = 206
 
+    if request.headers.get("if-none-match") == etag and not range:
+        return Response(status_code=304, headers={"ETag": etag, "Cache-Control": "public, max-age=86400, immutable"})
+
     def iter_file(s: int, e: int):
-        chunk_size = 1024 * 256  # 256KB chunks
+        chunk_size = 1024 * 1024  # 1MB chunks to reduce request overhead
         with open(safe_path, "rb") as f:
             f.seek(s)
             bytes_left = e - s + 1
@@ -357,7 +363,9 @@ async def stream_video(path: str, authorization: str = None, range: str = Header
     headers = {
         "Content-Type": content_type,
         "Accept-Ranges": "bytes",
-        "Content-Length": str(end - start + 1)
+        "Content-Length": str(end - start + 1),
+        "Cache-Control": "public, max-age=86400, immutable",
+        "ETag": etag
     }
 
     if status_code == 206:
