@@ -238,8 +238,12 @@
                     <div class="value" id="hwTemp">-- °C</div>
                 </div>
                 <div class="stat">
-                    <div class="label">GPU Temperature</div>
-                    <div class="value" id="hwGPUTemp">-- °C</div>
+                    <div class="label">Core Voltage</div>
+                    <div class="value" id="hwVoltage">-- V</div>
+                </div>
+                <div class="stat">
+                    <div class="label">CPU Frequency</div>
+                    <div class="value" id="hwFreq">-- MHz</div>
                 </div>
                 <div class="stat">
                     <div class="label">Model</div>
@@ -255,8 +259,11 @@
                 </div>
             </div>
             <div class="section" style="margin-top: 12px;">
-                <div class="label">Throttling Status</div>
-                <div id="hwThrottle" style="margin-top: 4px; font-size: 12px; color: #d0d0d8;">--</div>
+                <div class="label" style="display: flex; align-items: center; gap: 8px;">
+                    <span>⚡ Power Status</span>
+                    <span id="powerStatusIndicator" style="font-size: 10px; padding: 2px 6px; border-radius: 4px; background: rgba(52, 211, 153, 0.2); color: #34d399;">●</span>
+                </div>
+                <div id="hwThrottle" style="margin-top: 8px; font-size: 12px; line-height: 1.6;">--</div>
             </div>
         </div>
 
@@ -488,26 +495,87 @@
                 document.getElementById('procTopMem').innerHTML = topMemHTML || '<div class="sub">None</div>';
                 
                 // Hardware
-                document.getElementById('hwTemp').textContent = d.hardware.temperature ? `${d.hardware.temperature} °C` : 'N/A';
-                document.getElementById('hwGPUTemp').textContent = d.hardware.gpu_temperature ? `${d.hardware.gpu_temperature} °C` : 'N/A';
+                const temp = d.hardware.temperature;
+                const tempEl = document.getElementById('hwTemp');
+                if (temp) {
+                    tempEl.textContent = `${temp} °C`;
+                    tempEl.style.color = temp > 80 ? '#ef4444' : temp > 70 ? '#f59e0b' : '#d0d0d8';
+                } else {
+                    tempEl.textContent = 'N/A';
+                    tempEl.style.color = '#d0d0d8';
+                }
+                
+                const voltage = d.hardware.core_voltage;
+                const voltEl = document.getElementById('hwVoltage');
+                if (voltage) {
+                    voltEl.textContent = `${voltage} V`;
+                    voltEl.style.color = voltage < 1.2 ? '#ef4444' : voltage < 1.3 ? '#f59e0b' : '#d0d0d8';
+                } else {
+                    voltEl.textContent = 'N/A';
+                    voltEl.style.color = '#d0d0d8';
+                }
+                
+                document.getElementById('hwFreq').textContent = d.hardware.cpu_frequency ? `${d.hardware.cpu_frequency} MHz` : 'N/A';
                 document.getElementById('hwModel').textContent = d.hardware.model || '--';
                 document.getElementById('hwRevision').textContent = d.hardware.revision || '--';
                 document.getElementById('hwSerial').textContent = d.hardware.serial || '--';
                 
+                // Enhanced power status with visual warnings
+                const indicator = document.getElementById('powerStatusIndicator');
                 if (d.hardware.throttled) {
                     const nowFlags = [];
-                    if (d.hardware.throttled.under_voltage) nowFlags.push('Under Voltage');
-                    if (d.hardware.throttled.freq_capped) nowFlags.push('Freq Capped');
-                    if (d.hardware.throttled.throttled) nowFlags.push('Throttled');
-                    if (d.hardware.throttled.temp_limit) nowFlags.push('Temp Limit');
+                    let hasWarning = false;
+                    let hasCritical = false;
+                    
+                    if (d.hardware.throttled.under_voltage) {
+                        nowFlags.push('⚠️ <strong style="color:#ef4444">Under Voltage</strong> - Powerbank may be weak!');
+                        hasCritical = true;
+                    }
+                    if (d.hardware.throttled.freq_capped) {
+                        nowFlags.push('⚠️ <strong style="color:#f59e0b">Frequency Capped</strong>');
+                        hasWarning = true;
+                    }
+                    if (d.hardware.throttled.throttled) {
+                        nowFlags.push('⚠️ <strong style="color:#f59e0b">Throttled</strong>');
+                        hasWarning = true;
+                    }
+                    if (d.hardware.throttled.temp_limit) {
+                        nowFlags.push('🌡️ <strong style="color:#ef4444">Temperature Limit</strong>');
+                        hasCritical = true;
+                    }
+                    
                     const histFlags = [];
-                    if (d.hardware.throttled.under_voltage_has_occurred) histFlags.push('UV');
-                    if (d.hardware.throttled.freq_capped_has_occurred) histFlags.push('FC');
-                    if (d.hardware.throttled.throttled_has_occurred) histFlags.push('TH');
-                    if (d.hardware.throttled.temp_limit_has_occurred) histFlags.push('TL');
-                    document.getElementById('hwThrottle').innerHTML = `Now: ${nowFlags.length ? nowFlags.join(', ') : 'Normal'}<br>History: ${histFlags.length ? histFlags.join(', ') : 'None'}`;
+                    if (d.hardware.throttled.under_voltage_has_occurred) histFlags.push('<span style="color:#ef4444">Under-Voltage</span>');
+                    if (d.hardware.throttled.freq_capped_has_occurred) histFlags.push('Freq-Cap');
+                    if (d.hardware.throttled.throttled_has_occurred) histFlags.push('Throttle');
+                    if (d.hardware.throttled.temp_limit_has_occurred) histFlags.push('Temp-Limit');
+                    
+                    let statusHTML = `<div style="color:#d0d0d8;"><strong>Current Status:</strong><br>${nowFlags.length ? nowFlags.join('<br>') : '✅ <span style="color:#34d399">All Good</span>'}</div>`;
+                    if (histFlags.length) {
+                        statusHTML += `<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.1);color:#9090a0;"><strong>Since Boot:</strong> ${histFlags.join(', ')}</div>`;
+                    }
+                    
+                    document.getElementById('hwThrottle').innerHTML = statusHTML;
+                    
+                    // Update indicator
+                    if (hasCritical) {
+                        indicator.textContent = '● CRITICAL';
+                        indicator.style.background = 'rgba(239, 68, 68, 0.2)';
+                        indicator.style.color = '#ef4444';
+                    } else if (hasWarning) {
+                        indicator.textContent = '● WARNING';
+                        indicator.style.background = 'rgba(245, 158, 11, 0.2)';
+                        indicator.style.color = '#f59e0b';
+                    } else {
+                        indicator.textContent = '● NORMAL';
+                        indicator.style.background = 'rgba(52, 211, 153, 0.2)';
+                        indicator.style.color = '#34d399';
+                    }
                 } else {
-                    document.getElementById('hwThrottle').textContent = 'Unknown';
+                    document.getElementById('hwThrottle').innerHTML = '<span style="color:#9090a0;">Power monitoring unavailable</span>';
+                    indicator.textContent = '● UNKNOWN';
+                    indicator.style.background = 'rgba(156, 163, 175, 0.2)';
+                    indicator.style.color = '#9ca3af';
                 }
                 
                 // System

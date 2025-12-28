@@ -683,11 +683,34 @@ def collect_system_metrics():
                 "freq_capped_has_occurred": bool(val & (1 << 17)),
                 "throttled_has_occurred": bool(val & (1 << 18)),
                 "temp_limit_has_occurred": bool(val & (1 << 19)),
+                "raw_hex": val_hex
             }
     except Exception:
         throttled = None
     
     data["hardware"]["throttled"] = throttled
+    
+    # Voltage readings (core voltage)
+    voltage = None
+    try:
+        volt_result = subprocess.run(["vcgencmd", "measure_volts", "core"], capture_output=True, text=True, timeout=2)
+        if volt_result.returncode == 0:
+            volt_str = volt_result.stdout.strip()
+            voltage = float(volt_str.split("=")[1].replace("V", ""))
+    except:
+        pass
+    data["hardware"]["core_voltage"] = round(voltage, 2) if voltage else None
+    
+    # CPU frequency
+    cpu_freq = None
+    try:
+        freq_result = subprocess.run(["vcgencmd", "measure_clock", "arm"], capture_output=True, text=True, timeout=2)
+        if freq_result.returncode == 0:
+            freq_str = freq_result.stdout.strip()
+            cpu_freq = int(freq_str.split("=")[1]) / 1000000  # Convert Hz to MHz
+    except:
+        pass
+    data["hardware"]["cpu_frequency"] = int(cpu_freq) if cpu_freq else None
     
     # Model and SoC info
     try:
