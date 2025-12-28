@@ -194,8 +194,16 @@ fi
 echo "🐍 Installing Python dependencies..."
 python3 -m venv "$VENV_PATH"
 source "$VENV_PATH/bin/activate"
+
+# Use a larger on-disk temp dir so heavy wheels (PyMuPDF+tesseract) don't exhaust tmpfs
+BUILD_TMP="$APP_HOME/tmpbuild"
+mkdir -p "$BUILD_TMP"
+export TMPDIR="$BUILD_TMP"
+
 pip install --upgrade pip setuptools wheel
-pip install -r "$APP_HOME/requirements.txt"
+# Limit parallel compile to reduce temp usage; TMPDIR keeps build artifacts off /tmp
+MAKEFLAGS=-j2 pip install --no-cache-dir -r "$APP_HOME/requirements.txt"
+
 deactivate
 
 # Create systemd service
