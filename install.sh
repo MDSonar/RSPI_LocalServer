@@ -24,8 +24,7 @@ fi
 # Update system packages
 echo "🔄 Updating system packages..."
 apt update
-apt install -y python3 python3-venv python3-pip ntfs-3g exfat-fuse exfatprogs dosfstools \
-    build-essential pkg-config poppler-utils tesseract-ocr libtesseract-dev libleptonica-dev
+apt install -y python3 python3-venv python3-pip ntfs-3g exfat-fuse exfatprogs dosfstools
 
 # Create application user and group
 echo "👤 Creating application user..."
@@ -191,76 +190,12 @@ if [ -f "$(dirname "$0")/config/config.yaml" ]; then
     cp "$(dirname "$0")/config/config.yaml" "$CONFIG_PATH/"
 fi
 
-###############################################
-# Install Python dependencies (resilient flow)
-###############################################
+# Install Python dependencies
 echo "🐍 Installing Python dependencies..."
 python3 -m venv "$VENV_PATH"
 source "$VENV_PATH/bin/activate"
-
-# Use on-disk temp to avoid tmpfs exhaustion
-BUILD_TMP="$APP_HOME/tmpbuild"
-mkdir -p "$BUILD_TMP"
-export TMPDIR="$BUILD_TMP"
-
 pip install --upgrade pip setuptools wheel
-
-# Install core deps (skip heavy PyMuPDF/Pillow; they cause OOM on 1GB Pi)
-echo "📦 Installing lightweight core dependencies..."
-grep -Ev '^(PyMuPDF|Pillow|pdf2image|pytesseract)' "$APP_HOME/requirements.txt" > "$APP_HOME/requirements.core.txt"
-
-set +e
-pip install --no-cache-dir -r "$APP_HOME/requirements.core.txt"
-CORE_STATUS=$?
-set -e
-
-if [ $CORE_STATUS -ne 0 ]; then
-  echo "❌ Core dependency install failed. Check logs."
-  exit 1
-fi
-
-# Install pdfminer.six as lightweight PDF parser (no build required)
-echo "📄 Installing pdfminer.six (lightweight PDF parser)..."
-pip install --no-cache-dir pdfminer.six
-
-# Optional: Try Pillow from piwheels binary (for OCR support)
-echo "🖼️ Attempting Pillow from piwheels (OCR support, optional)..."
-set +e
-pip install --no-cache-dir Pillow --index-url https://www.piwheels.org/simple
-PILLOW_STATUS=$?
-set -e
-
-if [ $PILLOW_STATUS -eq 0 ]; then
-  echo "✅ Pillow installed from piwheels"
-  # Try pdf2image and pytesseract for OCR
-  set +e
-  pip install --no-cache-dir pdf2image pytesseract
-  OCR_STATUS=$?
-  set -e
-  if [ $OCR_STATUS -eq 0 ]; then
-    echo "✅ OCR support enabled (pdf2image + pytesseract)"
-  else
-    echo "⚠️ OCR packages failed; OCR features disabled"
-  fi
-else
-  echo "⚠️ Pillow install failed; OCR features disabled"
-fi
-
-# Verify text extraction backend
-if python - <<'PY'
-try:
-    import pdfminer.high_level
-    print('pdfminer-ok')
-except Exception:
-    raise SystemExit(1)
-PY
-then
-  echo "✅ Text extraction backend available (pdfminer.six + pdftotext)"
-else
-  echo "❌ No text extraction backend available. Installation incomplete."
-  exit 1
-fi
-
+pip install -r "$APP_HOME/requirements.txt"
 deactivate
 
 # Create systemd service

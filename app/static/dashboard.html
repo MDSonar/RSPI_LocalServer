@@ -276,8 +276,8 @@
 <body>
     <div class="container">
         <header>
-            <h1>Main Dashboard</h1>
-            <p class="subtitle">Pi Management Dashboard</p>
+            <h1>🚀 RSPI LocalServer</h1>
+            <p class="subtitle">Your Raspberry Pi Management Dashboard</p>
         </header>
 
         <div id="alertContainer"></div>
@@ -314,14 +314,6 @@
                 description: "",
                 mandatory: false,
                 route: "/apps/videoplayer"
-            },
-            {
-                id: "fintrack",
-                name: "FinTrack",
-                icon: "💰",
-                description: "Finance tracker (PDF ingestion)",
-                mandatory: false,
-                route: "/apps/fintrack"
             },
             {
                 id: "systeminfo",
@@ -385,16 +377,16 @@
                         <div class="app-actions">
                             ${isInstalled ? `
                                 <button class="btn-primary" onclick="launchApp('${app.route}')">
-                                    🚀
+                                    🚀 Launch
                                 </button>
                                 ${!app.mandatory ? `
                                     <button class="btn-danger" onclick="uninstallApp('${app.id}')">
-                                        🗑️
+                                        🗑️ Uninstall
                                     </button>
                                 ` : ''}
                             ` : `
                                 <button class="btn-success" onclick="installApp('${app.id}')">
-                                    📥
+                                    📥 Install
                                 </button>
                             `}
                         </div>

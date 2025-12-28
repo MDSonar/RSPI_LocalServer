@@ -9,7 +9,6 @@ import urllib.request
 import urllib.error
 import shutil
 import time
-import sys
 from collections import deque
 from datetime import datetime
 from threading import Lock
@@ -54,39 +53,6 @@ GITHUB_RAW_BASE = cfg.get(
     "apps.github_raw_base",
     "https://raw.githubusercontent.com/MDSonar/RSPI_LocalServer/main/apps",
 )
-
-
-def try_load_fintrack_api():
-    """Dynamically load FinTrack API if the optional app is present."""
-    search_paths = [
-        APPS_DIR / "optional" / "fintrack",
-        LOCAL_REPO_APPS / "optional" / "fintrack",
-    ]
-
-    for candidate in search_paths:
-        if not candidate.exists():
-            continue
-
-        candidate_str = str(candidate)
-        if candidate_str not in sys.path:
-            sys.path.insert(0, candidate_str)
-
-        try:
-            from fintrack.db.database import init_db as fintrack_init_db
-            from fintrack.api.finance import router as fintrack_router
-
-            fintrack_init_db()
-            app.include_router(fintrack_router, prefix="/api/fintrack", tags=["fintrack"])
-            logger.info("FinTrack API loaded from %s", candidate)
-            return
-        except Exception as exc:  # pragma: no cover - runtime guard
-            logger.warning("FinTrack API not available from %s: %s", candidate, exc)
-
-    logger.info("FinTrack API not loaded; install FinTrack to enable endpoints")
-
-
-# Attempt to register FinTrack API at startup (no-op if app missing)
-try_load_fintrack_api()
 
 
 def fetch_json(url: str, timeout: int = 8):
@@ -307,22 +273,6 @@ async def videoplayer_app(authorization: str = None):
     return "<h1>Video Player</h1><p>App not installed. Install from dashboard.</p>"
 
 
-@app.get("/apps/fintrack", response_class=HTMLResponse)
-async def fintrack_app(authorization: str = None):
-    """Serve the FinTrack app (optional)."""
-    verify_auth(authorization)
-
-    ui_path = APPS_DIR / "optional" / "fintrack" / "fintrack.html"
-    if ui_path.exists():
-        return ui_path.read_text()
-
-    repo_ui = LOCAL_REPO_APPS / "optional" / "fintrack" / "fintrack.html"
-    if repo_ui.exists():
-        return repo_ui.read_text()
-
-    return "<h1>FinTrack</h1><p>App not installed. Install from dashboard.</p>"
-
-
 @app.get("/api/video/find")
 async def find_videos(authorization: str = None):
     """Find all video files recursively on USB storage."""
@@ -438,7 +388,7 @@ async def install_app(app_id: str = Form(...), authorization: str = None):
     """Install an app by downloading from GitHub."""
     verify_auth(authorization)
     
-    valid_apps = ["filemanager", "systeminfo", "taskmanager", "videoplayer", "fintrack"]
+    valid_apps = ["filemanager", "systeminfo", "taskmanager", "videoplayer"]
     if app_id not in valid_apps:
         raise HTTPException(status_code=400, detail="Invalid app ID")
     
