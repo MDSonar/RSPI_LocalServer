@@ -259,6 +259,9 @@ then
 else
   echo "❌ No text extraction backend available. Installation incomplete."
   exit 1
+fi
+
+deactivate
 
 # Create systemd service
 echo "🔧 Installing systemd service..."
