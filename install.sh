@@ -198,61 +198,67 @@ echo "🐍 Installing Python dependencies..."
 python3 -m venv "$VENV_PATH"
 source "$VENV_PATH/bin/activate"
 
-# Use a larger on-disk temp dir so heavy wheels (PyMuPDF build) don't exhaust tmpfs
+# Use on-disk temp to avoid tmpfs exhaustion
 BUILD_TMP="$APP_HOME/tmpbuild"
 mkdir -p "$BUILD_TMP"
 export TMPDIR="$BUILD_TMP"
 
 pip install --upgrade pip setuptools wheel
 
-# First attempt: full requirements. If it fails (e.g., PyMuPDF source build), continue with filtered list.
+# Install core deps (skip heavy PyMuPDF/Pillow; they cause OOM on 1GB Pi)
+echo "📦 Installing lightweight core dependencies..."
+grep -Ev '^(PyMuPDF|Pillow|pdf2image|pytesseract)' "$APP_HOME/requirements.txt" > "$APP_HOME/requirements.core.txt"
+
 set +e
-MAKEFLAGS=-j2 pip install --no-cache-dir -r "$APP_HOME/requirements.txt"
-REQ_STATUS=$?
+pip install --no-cache-dir -r "$APP_HOME/requirements.core.txt"
+CORE_STATUS=$?
 set -e
 
-if [ $REQ_STATUS -ne 0 ]; then
-    echo "⚠️ Full requirements install failed (likely PyMuPDF build). Installing remaining deps without PyMuPDF..."
-    # Create a filtered requirements file excluding PyMuPDF
-    grep -vi '^pymupdf' "$APP_HOME/requirements.txt" > "$APP_HOME/requirements.nopymupdf.txt"
-    pip install --no-cache-dir -r "$APP_HOME/requirements.nopymupdf.txt"
-
-    echo "🔁 Trying PyMuPDF separately with constrained parallelism..."
-    set +e
-    MAKEFLAGS=-j2 pip install --no-cache-dir "PyMuPDF==1.23.7"
-    PYMUPDF_STATUS=$?
-    set -e
-
-    if [ $PYMUPDF_STATUS -ne 0 ]; then
-        echo "❌ PyMuPDF failed to install. Installing fallback text extractor (pdfminer.six)."
-        pip install --no-cache-dir pdfminer.six
-    fi
+if [ $CORE_STATUS -ne 0 ]; then
+  echo "❌ Core dependency install failed. Check logs."
+  exit 1
 fi
 
-# Verify text extraction availability: prefer PyMuPDF, else pdfminer.six
+# Install pdfminer.six as lightweight PDF parser (no build required)
+echo "📄 Installing pdfminer.six (lightweight PDF parser)..."
+pip install --no-cache-dir pdfminer.six
+
+# Optional: Try Pillow from piwheels binary (for OCR support)
+echo "🖼️ Attempting Pillow from piwheels (OCR support, optional)..."
+set +e
+pip install --no-cache-dir Pillow --index-url https://www.piwheels.org/simple
+PILLOW_STATUS=$?
+set -e
+
+if [ $PILLOW_STATUS -eq 0 ]; then
+  echo "✅ Pillow installed from piwheels"
+  # Try pdf2image and pytesseract for OCR
+  set +e
+  pip install --no-cache-dir pdf2image pytesseract
+  OCR_STATUS=$?
+  set -e
+  if [ $OCR_STATUS -eq 0 ]; then
+    echo "✅ OCR support enabled (pdf2image + pytesseract)"
+  else
+    echo "⚠️ OCR packages failed; OCR features disabled"
+  fi
+else
+  echo "⚠️ Pillow install failed; OCR features disabled"
+fi
+
+# Verify text extraction backend
 if python - <<'PY'
 try:
-        import fitz
-        print('fitz-ok')
+    import pdfminer.high_level
+    print('pdfminer-ok')
 except Exception:
-        try:
-                import pdfminer
-                print('pdfminer-ok')
-        except Exception:
-                raise SystemExit(1)
+    raise SystemExit(1)
 PY
 then
-    echo "✅ Text extraction backend available"
+  echo "✅ Text extraction backend available (pdfminer.six + pdftotext)"
 else
-    echo "❌ No text extraction backend (PyMuPDF or pdfminer.six) available. Installation incomplete."
-    # Do not abort service setup; FinTrack UI will show errors until dependencies fixed.
-fi
-
-deactivate
-
-# Remove Markdown docs in target to minimize disk usage
-echo "🧹 Cleaning docs from target to save space..."
-find "$APP_HOME" -type f -name "*.md" -delete 2>/dev/null || true
+  echo "❌ No text extraction backend available. Installation incomplete."
+  exit 1
 
 # Create systemd service
 echo "🔧 Installing systemd service..."
