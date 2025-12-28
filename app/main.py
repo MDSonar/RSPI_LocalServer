@@ -19,6 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 from .config import get_config
 from .file_manager import FileManager
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -871,6 +872,59 @@ async def browse(path: str = "", authorization: str = None):
         raise HTTPException(status_code=404, detail="Path not found or not a directory")
     
     return result
+
+
+@app.get("/api/browse/events")
+async def browse_events(path: str = "", authorization: str = None):
+    """Server-Sent Events stream for directory changes. Falls back to periodic keepalive when idle.
+    Note: If Basic Auth is enabled, browsers cannot add Authorization headers to EventSource; prefer LAN use or cookie/session.
+    """
+    verify_auth(authorization)
+
+    # Snapshot function to detect changes without heavy payloads
+    def snapshot(p: str):
+        data = file_manager.list_directory(p)
+        if not data:
+            return None, None
+        # lightweight hash over names+sizes+mtime
+        items = []
+        for f in data.get("folders", []):
+            items.append((f.get("name"), True, int(f.get("modified", 0)), 0))
+        for f in data.get("files", []):
+            items.append((f.get("name"), False, int(f.get("modified", 0)), int(f.get("size", 0))))
+        items.sort()
+        sig = hash(tuple(items))
+        return sig, data
+
+    async def event_gen():
+        last_sig = None
+        idle_heartbeats = 0
+        # Initial push
+        sig, data = snapshot(path)
+        if data is None:
+            yield "event: error\n" + f"data: {json.dumps({'detail':'Path not found'})}\n\n"
+        else:
+            last_sig = sig
+            yield "data: " + json.dumps(data) + "\n\n"
+
+        while True:
+            await asyncio.sleep(2)
+            sig, data = snapshot(path)
+            if data is None:
+                # Keep client aware; do not terminate to allow reconnection handling on client
+                yield "event: error\n" + f"data: {json.dumps({'detail':'Path not found'})}\n\n"
+                continue
+
+            if sig != last_sig:
+                last_sig = sig
+                idle_heartbeats = 0
+                yield "data: " + json.dumps(data) + "\n\n"
+            else:
+                idle_heartbeats += 1
+                if idle_heartbeats % 10 == 0:  # send keepalive ~ every 20s
+                    yield ": keepalive\n\n"
+
+    return StreamingResponse(event_gen(), media_type="text/event-stream")
 
 
 @app.post("/api/upload")

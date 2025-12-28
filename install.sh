@@ -215,6 +215,7 @@ Environment="PATH=/opt/rspi-localserver/venv/bin"
 ExecStart=/opt/rspi-localserver/venv/bin/gunicorn \
     --bind 0.0.0.0:8080 \
     --workers 1 \
+    --threads 4 \
     --worker-class uvicorn.workers.UvicornWorker \
     --timeout 30 \
     --access-logfile /var/log/rspi-localserver/access.log \

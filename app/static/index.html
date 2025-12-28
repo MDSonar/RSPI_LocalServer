@@ -450,24 +450,81 @@
         let currentPath = "";
         let selectedItem = null;
         let autoRefreshInterval = null;
+        let browseES = null; // EventSource for SSE
         let lastData = null;
         let isInitialLoad = true;
+        let refreshBase = 2000;
+        let refreshCurrent = 2000;
+        const refreshMax = 60000; // 60s cap when idle
 
         // Initialize
         (async () => {
             try {
                 const config = await fetch("/api/config").then(r => r.json());
                 document.getElementById("appTitle").textContent = config.title;
-                
-                // Setup auto-refresh if configured (background refresh, no loading state)
-                if (config.refreshInterval && config.refreshInterval > 0) {
-                    autoRefreshInterval = setInterval(() => refreshList(false), config.refreshInterval);
+                // Setup adaptive auto-refresh (visibility aware)
+                refreshBase = Math.max(1000, Number(config.refreshInterval) || 2000);
+                // Data Saver? slow down polling even more
+                if (navigator.connection && (navigator.connection.saveData || navigator.connection.effectiveType === '2g')) {
+                    refreshBase *= 2;
                 }
+                refreshCurrent = refreshBase;
+                const startAuto = () => {
+                    if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+                    if (!browseES) {
+                        autoRefreshInterval = setInterval(() => {
+                            if (!document.hidden) refreshList(false);
+                        }, refreshCurrent);
+                    }
+                };
+                startAuto();
+                // Setup SSE if supported
+                setupBrowseSSE("");
+                document.addEventListener('visibilitychange', () => {
+                    if (document.hidden) {
+                        if (autoRefreshInterval) { clearInterval(autoRefreshInterval); autoRefreshInterval = null; }
+                        if (browseES) { browseES.close(); browseES = null; }
+                    } else {
+                        refreshCurrent = refreshBase;
+                        setupBrowseSSE(currentPath);
+                        startAuto();
+                        refreshList(false);
+                    }
+                });
             } catch (e) {
                 console.error("Failed to load config:", e);
             }
             refreshList();
         })();
+
+        function setupBrowseSSE(path) {
+            try {
+                if (!window.EventSource) return; // fallback to polling
+                if (browseES) { browseES.close(); browseES = null; }
+                const url = `/api/browse/events?path=${encodeURIComponent(path || "")}`;
+                const es = new EventSource(url);
+                es.onmessage = (ev) => {
+                    try {
+                        const data = JSON.parse(ev.data);
+                        if (!lastData || JSON.stringify(lastData) !== JSON.stringify(data)) {
+                            renderFileList(data);
+                            updateBreadcrumb(data);
+                            lastData = data;
+                        }
+                    } catch { /* ignore parse errors */ }
+                };
+                es.onerror = () => {
+                    // Drop back to polling
+                    es.close();
+                    if (!browseES && !autoRefreshInterval) {
+                        autoRefreshInterval = setInterval(() => { if (!document.hidden) refreshList(false); }, refreshCurrent);
+                    }
+                };
+                browseES = es;
+                // Disable polling when SSE active
+                if (autoRefreshInterval) { clearInterval(autoRefreshInterval); autoRefreshInterval = null; }
+            } catch (e) { /* leave polling active */ }
+        }
 
         // Refresh file list
         async function refreshList(showLoading = true) {
@@ -492,12 +549,24 @@
                     renderFileList(data);
                     updateBreadcrumb(data);
                     lastData = data;
+                    // Reset polling on change
+                    refreshCurrent = refreshBase;
+                } else {
+                    // Backoff when nothing changes
+                    refreshCurrent = Math.min(refreshCurrent * 2, refreshMax);
+                }
+                // Restart timer with updated cadence
+                if (!document.hidden) {
+                    if (autoRefreshInterval) { clearInterval(autoRefreshInterval); autoRefreshInterval = null; }
+                    autoRefreshInterval = setInterval(() => { if (!document.hidden) refreshList(false); }, refreshCurrent);
                 }
                 
                 isInitialLoad = false;
             } catch (e) {
                 console.error("Error:", e);
                 if (showLoading) showAlert("Error loading directory", "error");
+                // Error: increase interval a bit to avoid hammering
+                refreshCurrent = Math.min(Math.max(refreshCurrent * 2, refreshBase), refreshMax);
             }
         }
 
@@ -565,6 +634,7 @@
             currentPath = path;
             lastData = null; // Force refresh on navigation
             isInitialLoad = true;
+            setupBrowseSSE(currentPath);
             refreshList(true);
         }
 
