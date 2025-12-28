@@ -1,0 +1,26 @@
+{
+  "name": "FinTrack",
+  "id": "fintrack",
+  "version": "1.0.0",
+  "description": "PDF-based personal finance tracker (SBI, HDFC, AMEX).",
+  "route": "/apps/fintrack",
+  "api_prefix": "/api/fintrack",
+  "files": [
+    "fintrack.html",
+    "fintrack/__init__.py",
+    "fintrack/api/__init__.py",
+    "fintrack/api/finance.py",
+    "fintrack/db/__init__.py",
+    "fintrack/db/database.py",
+    "fintrack/db/models.py",
+    "fintrack/parsers/__init__.py",
+    "fintrack/parsers/base.py",
+    "fintrack/parsers/registry.py",
+    "fintrack/parsers/sbi.py",
+    "fintrack/parsers/hdfc.py",
+    "fintrack/parsers/amex.py",
+    "fintrack/workers/__init__.py",
+    "fintrack/workers/ingestor.py",
+    "fintrack/workers/archive.py"
+  ]
+}

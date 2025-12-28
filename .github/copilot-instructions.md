@@ -12,7 +12,7 @@ FastAPI Routes (main.py) → FileManager (file_manager.py) → PathValidator + C
 
 - **No state persistence** – all operations are immediate filesystem I/O
 - **Singleton pattern** – `Config` class lazy-loads YAML config once, cached for performance
-- **Single worker** – Gunicorn + UvicornWorker; set `workers: 1` in config to preserve 1GB RAM
+- **Single worker** – Gunicorn + UvicornWorker; set `workers: 1` in config to preserve 1GB RAM; use `--threads 4` in the systemd ExecStart to improve I/O concurrency without extra memory
 
 ## Critical Modules & Key Patterns
 
@@ -116,9 +116,10 @@ sudo journalctl -u rspi-localserver -f
 
 ### Frontend Integration
 
-- **Single-file HTML UI:** `app/static/index.html` (no build step, vanilla JS)
-- **API base:** `/api/*` endpoints return JSON; UI polls `/api/browse` with auto-refresh interval from config
-- **UI config:** `/api/config` provides dynamic settings (title, refresh interval)
+- **Single-file HTML UI:** `app/static/index.html` and `app/static/filemanager.html` (no build step, vanilla JS)
+- **API base:** `/api/*` endpoints return JSON; directory updates now prefer SSE via `/api/browse/events` with adaptive polling/backoff + Page Visibility pause as fallback
+- **UI config:** `/api/config` provides dynamic settings (title, refresh interval); low-bandwidth/Data Saver doubles polling interval
+   - SSE auth note: EventSource cannot send Basic Auth headers; if `auth.enabled` is true, switch to cookie/session or allow a token query param for `/api/browse/events`
 
 ## Dependency & Integration Notes
 
