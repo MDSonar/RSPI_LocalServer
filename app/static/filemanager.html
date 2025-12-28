@@ -464,10 +464,10 @@
                             <div class="file-meta">${date}${size ? " • " + size : ""}</div>
                         </div>
                         <div class="file-actions">
-                            ${item.is_dir ? `<button onclick=\"openFolder('${itemPath}'); event.stopPropagation();\">📂 Open</button>` : `${isVideo ? `<button onclick=\"playVideoInline('${itemPath}'); event.stopPropagation();\">▶️ Play</button>` : ''}<button onclick=\"downloadFile('${itemPath}'); event.stopPropagation();\">⬇️ Download</button>`}
-                            ${item.is_mountpoint ? `<button class=\"btn-warning\" onclick=\"ejectDrive('${itemPath}'); event.stopPropagation();\">⏏️ Eject</button>` : ''}
-                            ${!item.is_mountpoint ? `<button onclick=\"showRenameDialog('${itemPath}'); event.stopPropagation();\">✏️ Rename</button>` : ''}
-                            ${!item.is_mountpoint ? `<button class=\"btn-danger\" onclick=\"showDeleteDialog('${itemPath}', '${escapeHtml(item.name)}'); event.stopPropagation();\">🗑️ Delete</button>` : ''}
+                            ${item.is_dir ? `<button onclick=\"openFolder('${itemPath}'); event.stopPropagation();\">📂</button>` : `${isVideo ? `<button onclick=\"playVideoInline('${itemPath}'); event.stopPropagation();\">▶️</button>` : ''}<button onclick=\"downloadFile('${itemPath}'); event.stopPropagation();\">⬇️</button>`}
+                            ${item.is_mountpoint ? `<button class=\"btn-warning\" onclick=\"ejectDrive('${itemPath}'); event.stopPropagation();\">⏏️</button>` : ''}
+                            ${!item.is_mountpoint ? `<button onclick=\"showRenameDialog('${itemPath}'); event.stopPropagation();\">✏️</button>` : ''}
+                            ${!item.is_mountpoint ? `<button class=\"btn-danger\" onclick=\"showDeleteDialog('${itemPath}', '${escapeHtml(item.name)}'); event.stopPropagation();\">🗑️</button>` : ''}
                         </div>
                     </div>
                 `;
