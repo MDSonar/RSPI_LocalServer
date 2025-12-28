@@ -24,7 +24,8 @@ fi
 # Update system packages
 echo "🔄 Updating system packages..."
 apt update
-apt install -y python3 python3-venv python3-pip ntfs-3g exfat-fuse exfatprogs dosfstools
+apt install -y python3 python3-venv python3-pip ntfs-3g exfat-fuse exfatprogs dosfstools \
+    build-essential pkg-config poppler-utils tesseract-ocr libtesseract-dev libleptonica-dev
 
 # Create application user and group
 echo "👤 Creating application user..."
@@ -190,21 +191,68 @@ if [ -f "$(dirname "$0")/config/config.yaml" ]; then
     cp "$(dirname "$0")/config/config.yaml" "$CONFIG_PATH/"
 fi
 
-# Install Python dependencies
+###############################################
+# Install Python dependencies (resilient flow)
+###############################################
 echo "🐍 Installing Python dependencies..."
 python3 -m venv "$VENV_PATH"
 source "$VENV_PATH/bin/activate"
 
-# Use a larger on-disk temp dir so heavy wheels (PyMuPDF+tesseract) don't exhaust tmpfs
+# Use a larger on-disk temp dir so heavy wheels (PyMuPDF build) don't exhaust tmpfs
 BUILD_TMP="$APP_HOME/tmpbuild"
 mkdir -p "$BUILD_TMP"
 export TMPDIR="$BUILD_TMP"
 
 pip install --upgrade pip setuptools wheel
-# Limit parallel compile to reduce temp usage; TMPDIR keeps build artifacts off /tmp
+
+# First attempt: full requirements. If it fails (e.g., PyMuPDF source build), continue with filtered list.
+set +e
 MAKEFLAGS=-j2 pip install --no-cache-dir -r "$APP_HOME/requirements.txt"
+REQ_STATUS=$?
+set -e
+
+if [ $REQ_STATUS -ne 0 ]; then
+    echo "⚠️ Full requirements install failed (likely PyMuPDF build). Installing remaining deps without PyMuPDF..."
+    # Create a filtered requirements file excluding PyMuPDF
+    grep -vi '^pymupdf' "$APP_HOME/requirements.txt" > "$APP_HOME/requirements.nopymupdf.txt"
+    pip install --no-cache-dir -r "$APP_HOME/requirements.nopymupdf.txt"
+
+    echo "🔁 Trying PyMuPDF separately with constrained parallelism..."
+    set +e
+    MAKEFLAGS=-j2 pip install --no-cache-dir "PyMuPDF==1.23.7"
+    PYMUPDF_STATUS=$?
+    set -e
+
+    if [ $PYMUPDF_STATUS -ne 0 ]; then
+        echo "❌ PyMuPDF failed to install. Installing fallback text extractor (pdfminer.six)."
+        pip install --no-cache-dir pdfminer.six
+    fi
+fi
+
+# Verify text extraction availability: prefer PyMuPDF, else pdfminer.six
+if python - <<'PY'
+try:
+        import fitz
+        print('fitz-ok')
+except Exception:
+        try:
+                import pdfminer
+                print('pdfminer-ok')
+        except Exception:
+                raise SystemExit(1)
+PY
+then
+    echo "✅ Text extraction backend available"
+else
+    echo "❌ No text extraction backend (PyMuPDF or pdfminer.six) available. Installation incomplete."
+    # Do not abort service setup; FinTrack UI will show errors until dependencies fixed.
+fi
 
 deactivate
+
+# Remove Markdown docs in target to minimize disk usage
+echo "🧹 Cleaning docs from target to save space..."
+find "$APP_HOME" -type f -name "*.md" -delete 2>/dev/null || true
 
 # Create systemd service
 echo "🔧 Installing systemd service..."

@@ -1,5 +1,7 @@
 """
-Base PDF Parser with text & OCR fallback
+Base PDF Parser with robust text extraction and OCR fallback.
+Prefers PyMuPDF (fitz), falls back to pdftotext or pdfminer.six.
+OCR via pytesseract+pdf2image when available.
 """
 
 import hashlib
@@ -8,11 +10,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict, Tuple
-
-import fitz  # PyMuPDF for text extraction
-import pytesseract
-from pdf2image import convert_from_path
-from PIL import Image
+import shutil
 
 logger = logging.getLogger(__name__)
 
@@ -22,11 +20,9 @@ class BaseBankParser(ABC):
 
     def __init__(self, pdf_path: str):
         self.pdf_path = Path(pdf_path)
-        self.doc = None
         self.logs: List[Dict] = []
 
     def compute_statement_hash(self) -> str:
-        """Compute SHA256 hash of PDF for idempotency."""
         sha256 = hashlib.sha256()
         with open(self.pdf_path, "rb") as handle:
             for chunk in iter(lambda: handle.read(4096), b""):
@@ -35,26 +31,57 @@ class BaseBankParser(ABC):
 
     def extract_text(self, use_ocr: bool = False) -> List[str]:
         """Extract text from PDF; optional OCR fallback for scanned pages."""
-        pages = []
+        pages: List[str] = []
+
+        # Try PyMuPDF
         try:
-            self.doc = fitz.open(self.pdf_path)
-            for page_num, page in enumerate(self.doc):
-                text = page.get_text()
-                if len(text.strip()) < 50 and use_ocr:
-                    text = self._ocr_page(page_num)
-                pages.append(text)
-            self.log("INFO", f"Extracted text from {len(pages)} pages")
+            import fitz  # type: ignore
+            with fitz.open(str(self.pdf_path)) as doc:
+                for i, page in enumerate(doc):
+                    text = page.get_text() or ""
+                    if len(text.strip()) < 50 and use_ocr:
+                        text = self._ocr_page(i)
+                    pages.append(text)
+            self.log("INFO", f"Extracted text via PyMuPDF ({len(pages)} pages)")
             return pages
         except Exception as exc:
-            self.log("ERROR", f"Text extraction failed: {exc}")
-            if not use_ocr:
-                return self.extract_text(use_ocr=True)
+            self.log("WARN", f"PyMuPDF unavailable or failed: {exc}")
+
+        # Try pdftotext CLI (poppler-utils)
+        if shutil.which("pdftotext"):
+            try:
+                import subprocess, tempfile
+                tmpdir = tempfile.mkdtemp()
+                out = Path(tmpdir) / "out.txt"
+                subprocess.run(["pdftotext", "-layout", str(self.pdf_path), str(out)], check=True)
+                content = out.read_text(errors="ignore")
+                pages = [p for p in content.split("\f") if p.strip()] or [content]
+                self.log("INFO", f"Extracted text via pdftotext ({len(pages)} pages)")
+                if use_ocr and all(len(p.strip()) < 50 for p in pages):
+                    pages = [self._ocr_page(i) for i in range(len(pages))]
+                return pages
+            except Exception as exc:
+                self.log("WARN", f"pdftotext failed: {exc}")
+
+        # Try pdfminer.six
+        try:
+            from pdfminer.high_level import extract_text
+            content = extract_text(str(self.pdf_path)) or ""
+            pages = [p for p in content.split("\f") if p.strip()] or [content]
+            self.log("INFO", f"Extracted text via pdfminer ({len(pages)} pages)")
+            if use_ocr and all(len(p.strip()) < 50 for p in pages):
+                pages = [self._ocr_page(i) for i in range(len(pages))]
             return pages
+        except Exception as exc:
+            self.log("ERROR", f"pdfminer failed: {exc}")
+            return []
 
     def _ocr_page(self, page_num: int) -> str:
         """OCR a single page (fallback for scanned PDFs)."""
         try:
-            images = convert_from_path(self.pdf_path, first_page=page_num + 1, last_page=page_num + 1)
+            from pdf2image import convert_from_path
+            import pytesseract
+            images = convert_from_path(str(self.pdf_path), first_page=page_num + 1, last_page=page_num + 1)
             if images:
                 text = pytesseract.image_to_string(images[0])
                 self.log("INFO", f"OCR page {page_num + 1}: extracted {len(text)} chars")
@@ -64,7 +91,6 @@ class BaseBankParser(ABC):
         return ""
 
     def log(self, level: str, message: str):
-        """Log message for audit trail."""
         self.logs.append({"level": level, "message": message, "timestamp": datetime.utcnow()})
         if level == "ERROR":
             logger.error(message)
@@ -79,8 +105,4 @@ class BaseBankParser(ABC):
         Parse PDF and return (statement_metadata, transactions).
         Implemented by subclasses.
         """
-
-    def close(self):
-        """Close PDF document."""
-        if self.doc:
-            self.doc.close()
+        raise NotImplementedError
